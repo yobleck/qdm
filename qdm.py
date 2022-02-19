@@ -5,6 +5,8 @@ import subprocess
 import sys
 import termios
 
+import os  # temporary for password testing without root
+
 def getch(blocking: bool = True) -> str:
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
@@ -68,17 +70,35 @@ def draw_menu(w: int, h2: int, c: dict, f: int, v: list, p: int, e: str) -> None
     print("\x1b[" + str(h2+i+1) + ";" + str(cw) + "H\u2514" + "\u2500"*(w4) + "\u2518")
 
 
-def check_pass(p) -> bool:
-    with open("./p.json", "r") as f:
-        test = json.load(f)
-    pass_hash = crypt.crypt(p, test["salt"])
-    # TODO GET FROM /etc/shadow
-    if pass_hash == test["pass"]:
-        del test
+def check_pass(uname: str, psswd: str) -> bool:
+    """Search for username in /etc/shadow
+    then compare user inputted password
+    to the one on file
+    """
+    if os.getuid != 0:  # NOTE temporary for testing without root. please delete p.json when done
+        with open("./p.json", "r") as f:
+            test = json.load(f)
+            salt = test["salt"]
+            salt_pass_from_file = test["pass"]
+            del test
+    elif os.getuid == 0:  # NOTE root only
+        with open("/etc/shadow", "r") as f:
+            for l in f.readlines():
+                i = l.split(":")
+                if i[0] == uname:
+                    salt_pass_from_file = i[1]
+                    salt = salt_pass_from_file.rsplit("$", maxsplit=1)[0]
+
+    pass_hash = crypt.crypt(psswd, salt)  # actual pswd hashing
+
+    if pass_hash == salt_pass_from_file:
+        del salt_pass_from_file
+        del salt
         del pass_hash
         return True
     else:
-        del test
+        del salt_pass_from_file
+        del salt
         del pass_hash
         return False
 
@@ -87,18 +107,16 @@ def main() -> int:
     with open("./config.json", "r") as f:
         # TODO grep list of .desktop files from /usr/share/xsessions
         config = json.load(f)
-    #[print(x) for x in config.items()]
 
     w, h = shutil.get_terminal_size()
     h2 = h//2
-    #print(w,h)
 
     error_msg = ""
-    password = "test"  # TODO ACTUAL SECURE PASSWORD HANDLING
+    password = ""
     field_in_focus = 0  # 0-2 xsess, username, password
-    config_values = [0,0]
+    config_values = [0,0]  # xsess, username TODO hacky fix this
 
-    frame = [["."]*w]*h
+    frame = [[" "]*w]*h
     print("\x1b[2J\x1b[H", end="")
 
     while True:
@@ -124,13 +142,15 @@ def main() -> int:
 
         # input password
         if field_in_focus == 2 and len(char) == 1 and char not in ["\n", "\r", "\t"]:
-            if char in ["\b", "\x08", "\x7f"]:
+            # trying to eliminate non text inputs in line above
+            if char in ["\b", "\x08", "\x7f"]:  # backspace
                 password = password[:-1]
             else:
                 password += char
 
+        # verify password
         if char in ["\n", "\r"]:
-            can_pass = check_pass(password)
+            can_pass = check_pass(config["usernames"][config_values[1]], password)
             if can_pass:
                 error_msg = "succ"
                 password = ""
@@ -149,4 +169,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # if os.getuid() == 0: ?
     main()
