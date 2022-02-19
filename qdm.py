@@ -7,6 +7,8 @@ import termios
 
 import os  # temporary for password testing without root
 
+import animations
+
 def getch(blocking: bool = True) -> str:
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
@@ -39,9 +41,9 @@ def handle_esc() -> str:
 
 def draw_animation(frame: list) -> None:  # TODO handle actual animation math/decisions in separate file
     print("\x1b[2J\x1b[H", end="")
-    for i in frame:
-        for j in i:
-            print(j, end="")
+    for w in frame:
+        for h in w:
+            print(h, end="")
 
 
 def menu_frmt(w: int, s: str, h: bool) -> str:
@@ -116,10 +118,13 @@ def main() -> int:
     field_in_focus = 0  # 0-2 xsess, username, password
     config_values = [0,0]  # xsess, username TODO hacky fix this
 
-    frame = [[" "]*w]*h
-    print("\x1b[2J\x1b[H", end="")
+    #frame = [[" " for i in range(h)] for j in range(w)]
+    frame = animations.init_text_rain(h, w)
+    print("\x1b[2J\x1b[H", end="")  # clear screen
+    print("\x1b[?25l", end="")  # hide cursor
 
     while True:
+        frame = animations.text_rain(h, w, frame)
         draw_animation(frame)
         draw_menu(w, h2, config, field_in_focus, config_values, len(password), error_msg)
         char = getch(True)
