@@ -35,22 +35,37 @@ def handle_esc() -> str:
     return "esc"
 
 
-def draw_animation():
-    pass
+def draw_animation(frame: list) -> None:  # TODO handle actual animation math/decisions in separate file
+    print("\x1b[2J\x1b[H", end="")
+    for i in frame:
+        for j in i:
+            print(j, end="")
 
 
-def draw_menu(w: int, h: int, c: dict, f: int, v: list, p: int, e: str) -> None:
-    print("\x1b[2J\x1b[H")
+def menu_frmt(w: int, s: str, h: bool) -> str:
+    """Adds border, space padding
+    and highlights line (h).
+    """
+    if len(s) < w:
+        return "\u2502" + "\x1b[7m"*(int(h)) + s + "\x1b[27m"*(int(h)) + " "*(w - len(s)) + "\u2502"
+    else:
+        return "\u2502" + s[:w] + "\u2502"
+
+
+def draw_menu(w: int, h2: int, c: dict, f: int, v: list, p: int, e: str) -> None:
+    print("\x1b[H", end="")  # reset cursor
     f += 1  # to account for header offset
+    w4 = w//4  # avoid repeating math
+    cw = w//2-w4//2  # center of screen
+    print("\x1b[" + str(h2-1) + ";" + str(cw) + "H\u250c" + "\u2500"*(w4) + "\u2510", end="")
     for i, x in enumerate(["QDM: vt" + str(c["vt"]),
                            "XSession: " + str(c["xsessions"][v[0]]),
                            "Username: " + str(c["usernames"][v[1]]),
                            "Password: " + p*"*",
                            e]):
-        if i == f:
-            print("\x1b[" + str(h//2+i) + ";" + str(w//2) + "H\x1b[7m" + x + "\x1b[27m")
-        else:
-            print("\x1b[" + str(h//2+i) + ";" + str(w//2) + "H" + x)
+        print("\x1b[" + str(h2+i) + ";" + str(cw) + "H" + menu_frmt(w4, x, (i == f)))
+
+    print("\x1b[" + str(h2+i+1) + ";" + str(cw) + "H\u2514" + "\u2500"*(w4) + "\u2518")
 
 
 def check_pass(p) -> bool:
@@ -66,7 +81,6 @@ def check_pass(p) -> bool:
         del test
         del pass_hash
         return False
-    
 
 
 def main() -> int:
@@ -76,6 +90,7 @@ def main() -> int:
     #[print(x) for x in config.items()]
 
     w, h = shutil.get_terminal_size()
+    h2 = h//2
     #print(w,h)
 
     error_msg = ""
@@ -83,10 +98,12 @@ def main() -> int:
     field_in_focus = 0  # 0-2 xsess, username, password
     config_values = [0,0]
 
-    print("\x1b[2J\x1b[H")
+    frame = [["."]*w]*h
+    print("\x1b[2J\x1b[H", end="")
 
     while True:
-        draw_menu(w, h, config, field_in_focus, config_values, len(password), error_msg)
+        draw_animation(frame)
+        draw_menu(w, h2, config, field_in_focus, config_values, len(password), error_msg)
         char = getch(True)
 
         if char == "\x1b":
@@ -94,7 +111,7 @@ def main() -> int:
 
             if char == "esc":
                 break
-            
+
             elif char == "up" and field_in_focus > 0:
                 field_in_focus -= 1
             elif char == "dn" and field_in_focus < 2:
@@ -104,20 +121,20 @@ def main() -> int:
                 config_values[field_in_focus] += 1
             elif char == "lf" and field_in_focus <= 1:
                 config_values[field_in_focus] -= 1
-        
+
         # input password
         if field_in_focus == 2 and len(char) == 1 and char not in ["\n", "\r", "\t"]:
             if char in ["\b", "\x08", "\x7f"]:
                 password = password[:-1]
             else:
                 password += char
-        
+
         if char in ["\n", "\r"]:
             can_pass = check_pass(password)
             if can_pass:
                 error_msg = "succ"
                 password = ""
-                #subprocess.Popen([])
+                #subprocess.Popen([])  # actually run *.desktop file
                 # break
             else:
                 error_msg = "wrong password, try again"
