@@ -1,14 +1,18 @@
 [Unit]
-Description =Q Display Manager
-After=systemd-user-sessions.service
+Description=Q Display Manager
+After=systemd-user-sessions.service plymouth-quit-wait.service
+Conflicts=getty@tty3.service
 
 [Service]
 Type=idle
-ExecStart=python /home/yobleck/qdm/qdm.py
+ExecStart= /usr/bin/python /home/yobleck/qdm/qdm.py
 StandardInput=tty
+StandardOutput=tty
+StandardError=syslog
 TTYPath=/dev/tty3
 TTYReset=yes
 TTYVHangup=yes
 
 [Install]
-Alias=display-manager.service
+WantedBy=multi-user.target
+#Alias=display-manager.service

@@ -79,7 +79,7 @@ def check_pass(uname: str, psswd: str) -> bool:
     to the one on file
     """
     if os.getuid != 0:  # NOTE temporary for testing without root. please delete p.json when done
-        with open("./p.json", "r") as f:
+        with open("/home/yobleck/qdm/p.json", "r") as f:
             test = json.load(f)
             salt = test["salt"]
             salt_pass_from_file = test["pass"]
@@ -107,7 +107,7 @@ def check_pass(uname: str, psswd: str) -> bool:
 
 
 def main() -> int:
-    with open("./config.json", "r") as f:
+    with open("/home/yobleck/qdm/config.json", "r") as f:
         # TODO grep list of .desktop files from /usr/share/xsessions
         config = json.load(f)
 
@@ -120,8 +120,8 @@ def main() -> int:
     config_values = [0,0]  # xsess, username TODO hacky fix this
 
     #frame = [[" " for i in range(h)] for j in range(w)]
-    #frame = animations.init_text_rain(h, w)
-    frame = animations.init_still_image(h, w)
+    frame = animations.init_text_rain(h, w)
+    #frame = animations.init_still_image(h, w)
     now = time.monotonic()
     print("\x1b[2J\x1b[H", end="")  # clear screen
     print("\x1b[?25l", end="")  # hide cursor
@@ -129,7 +129,7 @@ def main() -> int:
     while True:
         if time.monotonic() - now > 0.1:  # NOTE: fullscreen redraws cause flickering
             now = time.monotonic()
-            #frame = animations.text_rain(h, w, frame)
+            frame = animations.text_rain(h, w, frame)
         draw_animation(frame)
         draw_menu(w, h2, config, field_in_focus, config_values, len(password), error_msg)
 
@@ -169,6 +169,8 @@ def main() -> int:
                     error_msg = "succ"
                     password = ""
                     #subprocess.Popen([])  # actually run *.desktop file
+                    #https://unix.stackexchange.com/questions/170063/start-a-process-on-a-different-tty
+                    #setsid sh -c -f 'exec python /home/yobleck/qdm/qdm.py <> /dev/tty3 >&0 2>&1'
                     # break
                 else:
                     error_msg = "wrong password, try again"
@@ -176,8 +178,8 @@ def main() -> int:
 
     # exit stuff
     del password
-    with open("./config.json", "w") as f:
-        json.dump(config, f)
+    #with open("/home/yobleck/qdm/config.json", "w") as f:
+        #json.dump(config, f)
     print("\x1b[2J\x1b[H", end="")
     return 0
 
