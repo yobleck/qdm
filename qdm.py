@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import termios
+import time
 
 import os  # temporary for password testing without root
 
@@ -119,51 +120,59 @@ def main() -> int:
     config_values = [0,0]  # xsess, username TODO hacky fix this
 
     #frame = [[" " for i in range(h)] for j in range(w)]
-    frame = animations.init_text_rain(h, w)
+    #frame = animations.init_text_rain(h, w)
+    frame = animations.init_still_image(h, w)
+    now = time.monotonic()
     print("\x1b[2J\x1b[H", end="")  # clear screen
     print("\x1b[?25l", end="")  # hide cursor
 
     while True:
-        frame = animations.text_rain(h, w, frame)
+        if time.monotonic() - now > 0.1:
+            now = time.monotonic()
+            #frame = animations.text_rain(h, w, frame)
         draw_animation(frame)
         draw_menu(w, h2, config, field_in_focus, config_values, len(password), error_msg)
+
         char = getch(True)
 
-        if char == "\x1b":
-            char = handle_esc()
+        if char:
+            if char == "\x1b":
+                char = handle_esc()
 
-            if char == "esc":
-                break
+                if char == "esc":
+                    break
 
-            elif char == "up" and field_in_focus > 0:
-                field_in_focus -= 1
-            elif char == "dn" and field_in_focus < 2:
-                field_in_focus += 1
-            # TODO fix list out of bound error
-            elif char == "rt" and field_in_focus <= 1:
-                config_values[field_in_focus] += 1
-            elif char == "lf" and field_in_focus <= 1:
-                config_values[field_in_focus] -= 1
+                elif char == "up" and field_in_focus > 0:
+                    field_in_focus -= 1
+                elif char == "dn" and field_in_focus < 2:
+                    field_in_focus += 1
+                # TODO fix list out of bound error
+                elif char == "rt" and field_in_focus <= 1:
+                    if config_values[field_in_focus] < len(list(config.values())[field_in_focus+1])-1:
+                        config_values[field_in_focus] += 1
+                elif char == "lf" and field_in_focus <= 1:
+                    if config_values[field_in_focus] > 0:# len(list(config.values())[field_in_focus+1])-1:
+                        config_values[field_in_focus] -= 1
 
-        # input password
-        if field_in_focus == 2 and len(char) == 1 and char not in ["\n", "\r", "\t"]:
-            # trying to eliminate non text inputs in line above
-            if char in ["\b", "\x08", "\x7f"]:  # backspace
-                password = password[:-1]
-            else:
-                password += char
+            # input password
+            if field_in_focus == 2 and len(char) == 1 and char not in ["\n", "\r", "\t"]:
+                # trying to eliminate non text inputs in line above
+                if char in ["\b", "\x08", "\x7f"]:  # backspace
+                    password = password[:-1]
+                else:
+                    password += char
 
-        # verify password
-        if char in ["\n", "\r"]:
-            can_pass = check_pass(config["usernames"][config_values[1]], password)
-            if can_pass:
-                error_msg = "succ"
-                password = ""
-                #subprocess.Popen([])  # actually run *.desktop file
-                # break
-            else:
-                error_msg = "wrong password, try again"
-                password = ""
+            # verify password
+            if char in ["\n", "\r"]:
+                can_pass = check_pass(config["usernames"][config_values[1]], password)
+                if can_pass:
+                    error_msg = "succ"
+                    password = ""
+                    #subprocess.Popen([])  # actually run *.desktop file
+                    # break
+                else:
+                    error_msg = "wrong password, try again"
+                    password = ""
 
     # exit stuff
     del password
