@@ -11,7 +11,7 @@ The UI is shamelessly ripped from [Ly](https://github.com/fairyglade/ly) another
 
 The reason QDM exists is because Ly's large (too large for such a simple program IMO)
 
-codebase is no longer being actively maintained.
+code base is no longer being actively maintained.
 
 QDM is a hobby project and security is not my strong suit so feel free to critique that.
 
@@ -21,7 +21,7 @@ QDM is a hobby project and security is not my strong suit so feel free to critiq
     Actual value is controlled by the systemd service unit.
 
     - xsessions
-    A list of DEs/WMs whre each one is a list with wo items `["display name", "startup command"]`.
+    A list of DEs/WMs where each one is a list with two items `["display name", "startup command"]`.
     The first option is default.
 
     - usernames

@@ -44,6 +44,7 @@ def handle_esc() -> str:
 def draw_animation(frame: list) -> None:
     print("\x1b[2J\x1b[H", end="")
     for w in frame:
+        #print("".join(w), end="")
         for h in w:
             print(h, end="")
 
@@ -51,6 +52,7 @@ def draw_animation(frame: list) -> None:
 def menu_frmt(w: int, s: str, hi: bool) -> str:
     """Adds border, space padding
     and highlights line (hi).
+    TODO add colors
     """
     if len(s) < w:
         return "\u2502" + "\x1b[7m"*(int(hi)) + s + "\x1b[27m"*(int(hi)) + " "*(w - len(s)) + "\u2502"
@@ -120,21 +122,22 @@ def main() -> int:
     field_in_focus = 0  # 0-2 xsess, username, password
     config_values = [0,0]  # xsess, username TODO hacky fix this
 
-    #frame = [[" " for i in range(h)] for j in range(w)]
-    frame = animations.init_text_rain(h, w)
-    #frame = animations.init_still_image(h, w)
-    now = time.monotonic()
     print("\x1b[2J\x1b[H", end="")  # clear screen
     print("\x1b[?25l", end="")  # hide cursor
+    #frame = [[" " for i in range(h)] for j in range(w)]
+    frame = animations.init_text_rain(h, w)
+    #frame = animations.init_still_image(h, w); draw_animation(frame)
+    now = time.monotonic()
 
     while True:
         if time.monotonic() - now > 0.1:  # NOTE: fullscreen redraws cause flickering
             now = time.monotonic()
             frame = animations.text_rain(h, w, frame)
-        draw_animation(frame)
+            draw_animation(frame)
+            # TODO input chars showing up on screen
         draw_menu(w, h2, config, field_in_focus, config_values, len(password), error_msg)
 
-        char = getch(True)
+        char = getch(False)  # TODO keys for shutdown/reboot/switch to agetty
 
         if char:
             if char == "\x1b":
@@ -169,16 +172,18 @@ def main() -> int:
                 if can_pass:
                     error_msg = "succ"
                     password = ""
+                    subprocess.run(["chromium"])
                     #subprocess.Popen(shlex.split(config["xsessions"][config_values[0]][1]))
                     # actually run *.desktop file or just run start command from config file?
                     #https://unix.stackexchange.com/questions/170063/start-a-process-on-a-different-tty
                     #setsid sh -c -f 'exec python /home/yobleck/qdm/qdm.py <> /dev/tty3 >&0 2>&1'
-                    # break
+                    # break or use subprocess.run() so qdm can popback up when DE/WM is killed
                 else:
                     error_msg = "wrong password, try again"
                     password = ""
 
     # exit stuff
+    # TODO keep running in background when de/wm is running
     del password
     #with open("/home/yobleck/qdm/config.json", "w") as f:
         #json.dump(config, f)
