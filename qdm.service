@@ -1,0 +1,14 @@
+[Unit]
+Description =Q Display Manager
+After=systemd-user-sessions.service
+
+[Service]
+Type=idle
+ExecStart=python /home/yobleck/qdm/qdm.py
+StandardInput=tty
+TTYPath=/dev/tty3
+TTYReset=yes
+TTYVHangup=yes
+
+[Install]
+Alias=display-manager.service

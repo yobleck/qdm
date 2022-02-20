@@ -40,7 +40,7 @@ def handle_esc() -> str:
     return "esc"
 
 
-def draw_animation(frame: list) -> None:  # TODO handle actual animation math/decisions in separate file
+def draw_animation(frame: list) -> None:
     print("\x1b[2J\x1b[H", end="")
     for w in frame:
         for h in w:
@@ -127,7 +127,7 @@ def main() -> int:
     print("\x1b[?25l", end="")  # hide cursor
 
     while True:
-        if time.monotonic() - now > 0.1:
+        if time.monotonic() - now > 0.1:  # NOTE: fullscreen redraws cause flickering
             now = time.monotonic()
             #frame = animations.text_rain(h, w, frame)
         draw_animation(frame)
@@ -146,17 +146,17 @@ def main() -> int:
                     field_in_focus -= 1
                 elif char == "dn" and field_in_focus < 2:
                     field_in_focus += 1
-                # TODO fix list out of bound error
+
                 elif char == "rt" and field_in_focus <= 1:
                     if config_values[field_in_focus] < len(list(config.values())[field_in_focus+1])-1:
                         config_values[field_in_focus] += 1
                 elif char == "lf" and field_in_focus <= 1:
-                    if config_values[field_in_focus] > 0:# len(list(config.values())[field_in_focus+1])-1:
+                    if config_values[field_in_focus] > 0:
                         config_values[field_in_focus] -= 1
 
             # input password
             if field_in_focus == 2 and len(char) == 1 and char not in ["\n", "\r", "\t"]:
-                # trying to eliminate non text inputs in line above
+                # line above tries to eliminate non text inputs
                 if char in ["\b", "\x08", "\x7f"]:  # backspace
                     password = password[:-1]
                 else:
