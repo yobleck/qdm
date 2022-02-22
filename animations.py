@@ -4,7 +4,24 @@ import random
 import sys
 import time
 
-def init_text_rain(w:int, h: int) -> list:
+def draw_animation(frame: list) -> None:
+    print("\x1b[2J\x1b[H", end="")
+    #fb = ""
+    for w in frame:
+        #print("".join(w), end="")
+        #fb += "".join(w)
+        for h in w:
+            print(h, end="")
+    #print(fb, end="")
+
+
+def draw_animation_diff(frame: list) -> None:
+    #print("\x1b[2J\x1b[H", end="")
+    for i in frame:
+        print("\x1b[" + str(i[1]) + ";" + str(i[0]) + "H" + i[2], end="")
+
+
+def text_rain_init(w:int, h: int) -> list:
     frame = [[" " for i in range(h)] for j in range(w)]
     for x in range(w):
         for y in range(h):
@@ -24,7 +41,28 @@ def text_rain(w:int, h:int, frame: list) -> list:
     return frame
 
 
-def init_still_image(w: int, h:int) -> list:
+def text_rain_diff_init(w:int, h:int) -> list:
+    frame = []
+    for line in range(h):
+        for col in range(w):
+            if random.random() > 0.8:
+                frame.append([col, line, "|"])
+    return frame
+
+def text_rain_diff(w:int, h: int, frame: list) -> list:
+    # BUG number of lines is 3 more than it should be but doesn't cause scroll issues so it's minor
+    new_frame = []
+    for i in frame:
+        if i[2] == "|":
+            new_frame.append([i[0], i[1], " "])
+            if i[1] >= h:
+                new_frame.append([i[0], 0, "|"])
+            else:
+                new_frame.append([i[0], i[1]+1, "|"])
+    return new_frame
+
+
+def still_image_init(w: int, h:int) -> list:
     frame = []
     with open("./still_image.txt", "r") as f:
         for l in f.readlines():

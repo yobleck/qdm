@@ -11,6 +11,8 @@ import os  # temporary for password testing without root
 
 import animations
 
+# WARNING BUG user input shows up on left side of screen
+# even though termios.ECHO is turned off and screen is being cleared
 def getch(blocking: bool = True) -> str:
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
@@ -41,17 +43,8 @@ def handle_esc() -> str:
     return "esc"
 
 
-def draw_animation(frame: list) -> None:
-    print("\x1b[2J\x1b[H", end="")
-    for w in frame:
-        #print("".join(w), end="")
-        for h in w:
-            print(h, end="")
-
-
 def menu_frmt(w: int, s: str, hi: bool) -> str:
-    """Adds border, space padding
-    and highlights line (hi).
+    """Adds border, space padding and highlights line (hi).
     TODO add colors
     """
     if len(s) < w:
@@ -65,7 +58,7 @@ def draw_menu(w: int, h2: int, cfg: dict, foc: int, v: list, ps: int, er: str) -
     foc += 1  # to account for header offset
     w4 = w//4  # avoid repeating math
     cw = w//2-w4//2  # center of screen
-    print("\x1b[" + str(h2-1) + ";" + str(cw) + "H\u250c" + "\u2500"*(w4) + "\u2510", end="")
+    print("\x1b[" + str(h2-1) + ";" + str(cw) + "H\u250c" + "\u2500"*(w4) + "\u2510", end="")  # box top
     for i, x in enumerate(["QDM: vt" + str(cfg["vt"]),
                            "XSession: " + str(cfg["xsessions"][v[0]][0]),
                            "Username: " + str(cfg["usernames"][v[1]]),
@@ -73,7 +66,9 @@ def draw_menu(w: int, h2: int, cfg: dict, foc: int, v: list, ps: int, er: str) -
                            er]):
         print("\x1b[" + str(h2+i) + ";" + str(cw) + "H" + menu_frmt(w4, x, (i == foc)))
 
-    print("\x1b[" + str(h2+i+1) + ";" + str(cw) + "H\u2514" + "\u2500"*(w4) + "\u2518")
+    print("\x1b[" + str(h2+i+1) + ";" + str(cw) + "H\u2514" + "\u2500"*(w4) + "\u2518")  # box bottom
+    #print("\x1b[F", end="")
+    #print("\x1b[" + str(h2*2-2) + ";" + str(w) + "H", end="")
 
 
 def check_pass(uname: str, psswd: str) -> bool:
@@ -124,17 +119,19 @@ def main() -> int:
 
     print("\x1b[2J\x1b[H", end="")  # clear screen
     print("\x1b[?25l", end="")  # hide cursor
-    #frame = [[" " for i in range(h)] for j in range(w)]
-    frame = animations.init_text_rain(h, w)
-    #frame = animations.init_still_image(h, w); draw_animation(frame)
+    #frame = animations.text_rain_init(h, w)
+    frame = animations.text_rain_diff_init(w, h); animations.draw_animation_diff(frame)
+    #frame = animations.still_image_init(h, w); animations.draw_animation(frame)
     now = time.monotonic()
 
     while True:
-        if time.monotonic() - now > 0.1:  # NOTE: fullscreen redraws cause flickering
+        if time.monotonic() - now > 0.0694:  # NOTE: fullscreen redraws cause flickering. framerate config var?
             now = time.monotonic()
-            frame = animations.text_rain(h, w, frame)
-            draw_animation(frame)
-            # TODO input chars showing up on screen
+            #frame = animations.text_rain(h, w, frame)
+            #animations.draw_animation(frame)
+            frame = animations.text_rain_diff(w, h, frame)
+            animations.draw_animation_diff(frame)
+            # TODO input chars showing up on screen when getch(False)
         draw_menu(w, h2, config, field_in_focus, config_values, len(password), error_msg)
 
         char = getch(False)  # TODO keys for shutdown/reboot/switch to agetty
@@ -172,7 +169,7 @@ def main() -> int:
                 if can_pass:
                     error_msg = "succ"
                     password = ""
-                    subprocess.run(["chromium"])
+                    #subprocess.run(["chromium"])
                     #subprocess.Popen(shlex.split(config["xsessions"][config_values[0]][1]))
                     # actually run *.desktop file or just run start command from config file?
                     #https://unix.stackexchange.com/questions/170063/start-a-process-on-a-different-tty
