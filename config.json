@@ -1,1 +1,3 @@
-{"vt": 3, "xsessions": [["plasma", "startx"], ["qtile", "startx /usr/bin/qtile start"]], "usernames": ["root", "yobleck", "test"]}
+{"vt": 3,
+"xsessions": [["plasma", "startx"], ["qtile", "startx /usr/bin/qtile start"], ["bash", "/usr/bin/bash"]],
+"usernames": ["root", "yobleck", "test"]}

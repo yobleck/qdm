@@ -133,7 +133,7 @@ def main() -> int:
 
         draw_menu(w, h2, config, field_in_focus, config_values, len(password), error_msg)
 
-        char = getch(False)  # TODO keys for shutdown/reboot/switch to agetty
+        char = getch(True)  # TODO keys for shutdown/reboot/switch to agetty
 
         if char:
             if char == "\x1b":
@@ -167,12 +167,22 @@ def main() -> int:
                 if can_pass:
                     error_msg = "succ"
                     password = ""
-                    #subprocess.run(["chromium"])
-                    #subprocess.Popen(shlex.split(config["xsessions"][config_values[0]][1]))
+                    #os.execl("/usr/bin/bash", "/usr/bin/bash", ">", "/dev/tty3", "2>&1")
+                    print("\x1b[?25h", end="")  # unhide cursor
+                    # TODO create .Xauthority file, set env vars
+                    os.putenv("HOME", "/home/yobleck")
+                    os.putenv("PWD", "/home/yobleck")
+                    os.putenv("USER", "yobleck")
+                    os.putenv("LOGNAME", "yobleck")
+                    os.putenv("DISPLAY", ":1")
+                    os.putenv("XAUTHORITY", "/home/yobleck/.Xauthority")
+                    os.setuid(1000)
+                    os.system("/usr/bin/bash 2>&1")  # subprocess?
+                    # "screen bash"?
                     # actually run *.desktop file or just run start command from config file?
                     #https://unix.stackexchange.com/questions/170063/start-a-process-on-a-different-tty
                     #setsid sh -c -f 'exec python /home/yobleck/qdm/qdm.py <> /dev/tty3 >&0 2>&1'
-                    # break or use subprocess.run() so qdm can popback up when DE/WM is killed
+                    # https://www.gulshansingh.com/posts/how-to-write-a-display-manager/
                 else:
                     error_msg = "wrong password, try again"
                     password = ""
