@@ -19,7 +19,7 @@ def getch(blocking: bool = True) -> str:
     new = list(old_settings)
     new[3] &= ~(termios.ICANON | termios.ECHO)
     new[6][termios.VMIN] = 1 if blocking else 0
-    new[6][termios.VTIME] = 0
+    new[6][termios.VTIME] = 1  # 0 is faster but causes bytes to slip through the cracks?
     termios.tcsetattr(fd, termios.TCSADRAIN, new)
     try:
         ch = sys.stdin.read(1)
@@ -54,6 +54,7 @@ def menu_frmt(w: int, s: str, hi: bool) -> str:
 
 
 def draw_menu(w: int, h2: int, cfg: dict, foc: int, v: list, ps: int, er: str) -> None:
+    # TODO move to animations and add diff version that appends to the animation diff frame
     print("\x1b[H", end="")  # reset cursor
     foc += 1  # to account for header offset
     w4 = w//4  # avoid repeating math
@@ -67,8 +68,6 @@ def draw_menu(w: int, h2: int, cfg: dict, foc: int, v: list, ps: int, er: str) -
         print("\x1b[" + str(h2+i) + ";" + str(cw) + "H" + menu_frmt(w4, x, (i == foc)))
 
     print("\x1b[" + str(h2+i+1) + ";" + str(cw) + "H\u2514" + "\u2500"*(w4) + "\u2518")  # box bottom
-    #print("\x1b[F", end="")
-    #print("\x1b[" + str(h2*2-2) + ";" + str(w) + "H", end="")
 
 
 def check_pass(uname: str, psswd: str) -> bool:
@@ -131,7 +130,7 @@ def main() -> int:
             #animations.draw_animation(frame)
             frame = animations.text_rain_diff(w, h, frame)
             animations.draw_animation_diff(frame)
-            # TODO input chars showing up on screen when getch(False)
+
         draw_menu(w, h2, config, field_in_focus, config_values, len(password), error_msg)
 
         char = getch(False)  # TODO keys for shutdown/reboot/switch to agetty
@@ -155,16 +154,15 @@ def main() -> int:
                     if config_values[field_in_focus] > 0:
                         config_values[field_in_focus] -= 1
 
-            # input password
-            if field_in_focus == 2 and len(char) == 1 and char not in ["\n", "\r", "\t"]:
+            elif field_in_focus == 2 and char in ["\b", "\x08", "\x7f"]:  # \x08=ctrl+h
+                password = password[:-1]  # backspace password
+
+            elif field_in_focus == 2 and len(char) == 1 and char not in ["\n", "\r", "\t"]:
                 # line above tries to eliminate non text inputs
-                if char in ["\b", "\x08", "\x7f"]:  # backspace
-                    password = password[:-1]
-                else:
-                    password += char
+                password += char  # password input
 
             # verify password
-            if char in ["\n", "\r"]:
+            elif char in ["\n", "\r"]:
                 can_pass = check_pass(config["usernames"][config_values[1]], password)
                 if can_pass:
                     error_msg = "succ"
@@ -181,9 +179,7 @@ def main() -> int:
 
     # exit stuff
     # TODO keep running in background when de/wm is running
-    del password
-    #with open("/home/yobleck/qdm/config.json", "w") as f:
-        #json.dump(config, f)
+    del password  # security?
     print("\x1b[2J\x1b[H", end="")
     return 0
 
