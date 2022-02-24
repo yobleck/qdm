@@ -53,7 +53,7 @@ def menu_frmt(w: int, s: str, hi: bool) -> str:
         return "\u2502" + s[:w] + "\u2502"
 
 
-def draw_menu(w: int, h2: int, cfg: dict, foc: int, v: list, ps: int, er: str) -> None:
+def draw_menu(w: int, h2: int, cfg: dict, foc: int, cv: list, ps: int, er: str) -> None:
     # TODO move to animations and add diff version that appends to the animation diff frame
     print("\x1b[H", end="")  # reset cursor
     foc += 1  # to account for header offset
@@ -61,8 +61,8 @@ def draw_menu(w: int, h2: int, cfg: dict, foc: int, v: list, ps: int, er: str) -
     cw = w//2-w4//2  # center of screen
     print("\x1b[" + str(h2-1) + ";" + str(cw) + "H\u250c" + "\u2500"*(w4) + "\u2510", end="")  # box top
     for i, x in enumerate(["QDM: vt" + str(cfg["vt"]),
-                           "XSession: " + str(cfg["xsessions"][v[0]][0]),
-                           "Username: " + str(cfg["usernames"][v[1]]),
+                           "XSession: " + str(cfg["xsessions"][cv[0]][0]),
+                           "Username: " + str(cfg["usernames"][cv[1]]),
                            "Password: " + ps*"*",
                            er]):
         print("\x1b[" + str(h2+i) + ";" + str(cw) + "H" + menu_frmt(w4, x, (i == foc)))
@@ -165,24 +165,38 @@ def main() -> int:
             elif char in ["\n", "\r"]:
                 can_pass = check_pass(config["usernames"][config_values[1]], password)
                 if can_pass:
-                    error_msg = "succ"
+                    error_msg = "success"
                     password = ""
-                    #os.execl("/usr/bin/bash", "/usr/bin/bash", ">", "/dev/tty3", "2>&1")
+                    print("\x1b[2J\x1b[H", end="")
                     print("\x1b[?25h", end="")  # unhide cursor
-                    # TODO create .Xauthority file, set env vars
+                    # set env vars. TODO more stuff from printenv
+                    os.setuid(1000)
+                    os.setgid(1000)
+                    os.putenv("QT_QPA_PLATFORMTHEME", "qt5ct")
+                    os.putenv("XCURSOR_THEME", "breeze_cursors")
+                    os.putenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
                     os.putenv("HOME", "/home/yobleck")
                     os.putenv("PWD", "/home/yobleck")
+                    os.chdir("/home/yobleck")
                     os.putenv("USER", "yobleck")
                     os.putenv("LOGNAME", "yobleck")
                     os.putenv("DISPLAY", ":1")
-                    os.putenv("XAUTHORITY", "/home/yobleck/.Xauthority")
-                    os.setuid(1000)
-                    os.system("/usr/bin/bash 2>&1")  # subprocess?
-                    # "screen bash"?
+                    os.putenv("XAUTHORITY", "/home/yobleck/.lyxauth")
+                    # TODO create .Xauthority file
+                    #os.putenv("XAUTHORITY", "/home/yobleck/.qdm_xauth")
+                    #os.system("/usr/bin/xauth add :1 . `/usr/bin/mcookie`")  # /usr/bin/bash -c
+                    #os.putenv("XDG_", "")
+                    os.system(config["xsessions"][config_values[0]][1])
+                    #os.system("startx /usr/bin/qtile start")
+                    #os.system("/usr/bin/bash --login 2>&1")  # subprocess?
+                    #os.system("/usr/bin/login -p -f yobleck")
+                    #os.execl("/usr/bin/bash", "/usr/bin/bash", ">", "/dev/tty3", "2>&1")
+                    # https://wiki.archlinux.org/title/systemd/User
                     # actually run *.desktop file or just run start command from config file?
                     #https://unix.stackexchange.com/questions/170063/start-a-process-on-a-different-tty
                     #setsid sh -c -f 'exec python /home/yobleck/qdm/qdm.py <> /dev/tty3 >&0 2>&1'
                     # https://www.gulshansingh.com/posts/how-to-write-a-display-manager/
+                    print("\x1b[?25l", end="")
                 else:
                     error_msg = "wrong password, try again"
                     password = ""
