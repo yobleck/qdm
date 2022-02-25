@@ -6,6 +6,7 @@ Conflicts=getty@tty3.service
 [Service]
 Type=idle
 ExecStart= /usr/bin/python /home/yobleck/qdm/qdm.py
+#Slice=session.slice user.slice user-1000.slice
 StandardInput=tty
 StandardOutput=tty
 StandardError=syslog
