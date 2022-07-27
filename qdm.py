@@ -1,4 +1,5 @@
 import crypt
+import dbus_test
 import json
 import shlex
 import shutil
@@ -104,6 +105,12 @@ def check_pass(uname: str, psswd: str) -> bool:
 
 
 def main() -> int:
+    try:
+        #dbus_test.sys_test()
+        pass
+    except Exception as e:
+        with open("/home/yobleck/qdm/test.log", "a") as f:
+            f.write(str(e))
     with open("/home/yobleck/qdm/config.json", "r") as f:
         # TODO grep list of .desktop files from /usr/share/xsessions
         config = json.load(f)
@@ -174,7 +181,7 @@ def main() -> int:
                     os.setuid(1000)
                     os.putenv("QT_QPA_PLATFORMTHEME", "qt5ct")
                     os.putenv("XCURSOR_THEME", "breeze_cursors")
-                    os.putenv("XDG_RUNTIME_DIR", "/run/user/1000")
+                    os.putenv("XDG_RUNTIME_DIR", "/run/user/1000")  # This should be set by pam_systemd.so
                     os.putenv("XDG_SEAT", "seat0")
                     os.putenv("XDG_VTNR", "3")
                     os.putenv("XDG_SESSION_CLASS", "user")
@@ -214,6 +221,16 @@ def main() -> int:
                     # /usr/lib/systemd/systemd-logind
                     # systemctl --user start qdm.target ?
                     # https://www.freedesktop.org/software/systemd/python-systemd/
+
+                    # List of TODO
+                    # move check pass and all auth/login/startup stuff to auth.py
+                    # systemd and non systemd options
+                    # add to config systemd or not, lists of env vars, list of commands to be run
+                    # change menu to be object that is built from config with proper methods and stuff
+                    # access logind via dbus org.freedesktop.login1.Manager method CreateSession via pam_ssytemd
+                    #   https://www.freedesktop.org/wiki/Software/systemd/logind/
+                    #   https://wiki.freedesktop.org/www/Software/systemd/dbus/
+                    # try pip install python-pam
                     print("\x1b[?25l", end="")
                 else:
                     error_msg = "wrong password, try again"
