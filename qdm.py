@@ -1,5 +1,4 @@
 import crypt
-import dbus_test
 import json
 import shlex
 import shutil
@@ -11,6 +10,7 @@ import time
 import os  # temporary for password testing without root
 
 import animations
+import dbus_test
 
 # WARNING BUG user input shows up on left side of screen
 # even though termios.ECHO is turned off and screen is being cleared
@@ -105,12 +105,16 @@ def check_pass(uname: str, psswd: str) -> bool:
 
 
 def main() -> int:
-    try:
-        #dbus_test.sys_test()
-        pass
+    """try:
+        dbus_test.sys_test()
+        #pass
     except Exception as e:
         with open("/home/yobleck/qdm/test.log", "a") as f:
-            f.write(str(e))
+            f.write(str(e) + "\n")"""
+    print("\x1b[2J\x1b[H", end="")  # clear screen
+    print("brirb")
+
+
     with open("/home/yobleck/qdm/config.json", "r") as f:
         # TODO grep list of .desktop files from /usr/share/xsessions
         config = json.load(f)
@@ -176,36 +180,45 @@ def main() -> int:
                     password = ""
                     print("\x1b[2J\x1b[H", end="")
                     print("\x1b[?25h", end="")  # unhide cursor
-                    # set env vars. TODO more stuff from printenv
-                    os.setgid(1000)
-                    os.setuid(1000)
-                    os.putenv("QT_QPA_PLATFORMTHEME", "qt5ct")
-                    os.putenv("XCURSOR_THEME", "breeze_cursors")
-                    os.putenv("XDG_RUNTIME_DIR", "/run/user/1000")  # This should be set by pam_systemd.so
-                    os.putenv("XDG_SEAT", "seat0")
-                    os.putenv("XDG_VTNR", "3")
-                    os.putenv("XDG_SESSION_CLASS", "user")
-                    os.putenv("XDG_SESSION_TYPE", "tty")
-                    os.putenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
-                    os.putenv("HOME", "/home/yobleck")
-                    os.putenv("PWD", "/home/yobleck")
-                    os.chdir("/home/yobleck")
-                    os.putenv("USER", "yobleck")
-                    os.putenv("LOGNAME", "yobleck")
-                    os.putenv("TERM", "xterm-256color")
-                    os.putenv("DISPLAY", ":1")
-                    # create .Xauthority file https://github.com/fairyglade/ly/blob/609b3f9ddcb8e953884002745eca5fde8480802f/src/login.c#L307
-                    os.putenv("XAUTHORITY", "/home/yobleck/.qdm_xauth")
-                    os.system("/usr/bin/xauth add :1 . `/usr/bin/mcookie`")  # /usr/bin/bash -c
 
-                    # start DE/WM TODO systemd user session/slice/scope
-                    os.system("/usr/bin/bash /home/yobleck/qdm/xsetup.sh " + config["xsessions"][config_values[0]][1])
-                    #os.system(config["xsessions"][config_values[0]][1])
-                    #os.system("systemd-run --no-ask-password --slice=user --user startx /usr/bin/qtile start")
-                    #os.system("startx /usr/bin/qtile start")
-                    #os.system("/usr/bin/bash --login 2>&1")  # subprocess?
-                    #os.system("/usr/bin/login -p -f yobleck")
-                    #os.execl("/usr/bin/bash", "/usr/bin/bash", ">", "/dev/tty3", "2>&1")
+                    pid = os.fork()
+
+                    if pid > 0:
+                        dbus_test.sys_test(pid)
+                        #time.sleep(3600)  # TODO wait for child to exit
+                    elif pid == 0:
+                        time.sleep(1)
+                        # set env vars. TODO more stuff from printenv
+                        os.setgid(1000)
+                        os.setuid(1000)
+                        os.putenv("QT_QPA_PLATFORMTHEME", "qt5ct")
+                        os.putenv("XCURSOR_THEME", "breeze_cursors")
+                        os.putenv("XDG_RUNTIME_DIR", "/run/user/1000")  # This should be set by pam_systemd.so
+                        os.putenv("XDG_SEAT", "seat0")
+                        os.putenv("XDG_VTNR", "3")
+                        os.putenv("XDG_SESSION_CLASS", "user")
+                        os.putenv("XDG_SESSION_TYPE", "tty")
+                        os.putenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
+                        os.putenv("HOME", "/home/yobleck")
+                        os.putenv("PWD", "/home/yobleck")
+                        os.chdir("/home/yobleck")
+                        os.putenv("USER", "yobleck")
+                        os.putenv("LOGNAME", "yobleck")
+                        os.putenv("TERM", "xterm-256color")
+                        os.putenv("DISPLAY", ":1")
+                        # create .Xauthority file https://github.com/fairyglade/ly/blob/609b3f9ddcb8e953884002745eca5fde8480802f/src/login.c#L307
+                        os.putenv("XAUTHORITY", "/home/yobleck/.qdm_xauth")
+                        os.system("/usr/bin/xauth add :1 . `/usr/bin/mcookie`")  # /usr/bin/bash -c
+
+                        # start DE/WM TODO systemd user session/slice/scope
+                        #os.system("/usr/bin/bash /home/yobleck/qdm/xsetup.sh " + config["xsessions"][config_values[0]][1])
+                        #os.system(config["xsessions"][config_values[0]][1])
+                        #os.system("systemd-run --no-ask-password --slice=user --user startx /usr/bin/qtile start")
+                        os.system("startx /usr/bin/qtile start")
+                        #os.system("/usr/bin/bash --login 2>&1")  # subprocess?
+                        #os.system("/usr/bin/login -p -f yobleck")
+                        #os.execl("/usr/bin/bash", "/usr/bin/bash", ">", "/dev/tty3", "2>&1")
+                        break
 
                     # https://wiki.archlinux.org/title/systemd/User
                     # actually run *.desktop file or just run start command from config file?
