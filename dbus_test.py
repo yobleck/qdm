@@ -52,12 +52,12 @@ def sys_test(pid: int) -> None:
     #pid = os.fork()
     #if pid > 0:
     # Create session is supposed to be called by PAM, but hell if I can figure out how to
-    # to interface with it.
+    # to interface with it. TODO see python-pam source code
     # TODO type, desktop, tty etc. should be input from config values
     # whats the proper way to handle seat0
     login_interface.CreateSession(1000,  # uid
                                 pid,  # pid
-                                "user@.service",  # service
+                                "login",  # service
                                 "x11",  # type
                                 "user",  # class
                                 "qtile",  # desktop

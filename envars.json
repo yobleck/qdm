@@ -1,0 +1,17 @@
+{
+	"QT_QPA_PLATFORMTHEME": "qt5ct",
+    "XCURSOR_THEME": "breeze_cursors",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "XDG_SEAT": "seat0",
+    "XDG_VTNR": "3",
+    "XDG_SESSION_CLASS": "user",
+    "XDG_SESSION_TYPE": "x11",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "HOME": "/home/yobleck",
+    "PWD": "/home/yobleck",
+    "USER": "yobleck",
+    "LOGNAME": "yobleck",
+    "TERM": "xterm-256color",
+    "DISPLAY": ":1",
+    "XAUTHORITY": "/home/yobleck/.qdm_xauth"
+}

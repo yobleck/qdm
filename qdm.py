@@ -2,7 +2,6 @@ import crypt
 import json
 import shlex
 import shutil
-import subprocess
 import sys
 import termios
 import time
@@ -90,17 +89,13 @@ def check_pass(uname: str, psswd: str) -> bool:
                     salt_pass_from_file = i[1]
                     salt = salt_pass_from_file.rsplit("$", maxsplit=1)[0]
 
-    pass_hash = crypt.crypt(psswd, salt)  # actual pswd hashing
-
-    if pass_hash == salt_pass_from_file:
+    if crypt.crypt(psswd, salt) == salt_pass_from_file:  # actual pswd hashing
         del salt_pass_from_file
         del salt
-        del pass_hash
         return True
     else:
         del salt_pass_from_file
         del salt
-        del pass_hash
         return False
 
 
@@ -110,9 +105,9 @@ def main() -> int:
         #pass
     except Exception as e:
         with open("/home/yobleck/qdm/test.log", "a") as f:
-            f.write(str(e) + "\n")"""
+            f.write(str(e) + "\n")
     print("\x1b[2J\x1b[H", end="")  # clear screen
-    print("brirb")
+    print("brirb")"""
 
 
     with open("/home/yobleck/qdm/config.json", "r") as f:
@@ -184,37 +179,31 @@ def main() -> int:
                     pid = os.fork()
 
                     if pid > 0:
-                        dbus_test.sys_test(pid)
-                        #time.sleep(3600)  # TODO wait for child to exit
+                        dbus_test.sys_test(pid)  # TODO PAM
+                        os.waitpid(pid, 0)
+
                     elif pid == 0:
-                        time.sleep(1)
+                        time.sleep(0.5)
                         # set env vars. TODO more stuff from printenv
                         os.setgid(1000)
                         os.setuid(1000)
-                        os.putenv("QT_QPA_PLATFORMTHEME", "qt5ct")
-                        os.putenv("XCURSOR_THEME", "breeze_cursors")
-                        os.putenv("XDG_RUNTIME_DIR", "/run/user/1000")  # This should be set by pam_systemd.so
-                        os.putenv("XDG_SEAT", "seat0")
-                        os.putenv("XDG_VTNR", "3")
-                        os.putenv("XDG_SESSION_CLASS", "user")
-                        os.putenv("XDG_SESSION_TYPE", "tty")
-                        os.putenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
-                        os.putenv("HOME", "/home/yobleck")
-                        os.putenv("PWD", "/home/yobleck")
-                        os.chdir("/home/yobleck")
-                        os.putenv("USER", "yobleck")
-                        os.putenv("LOGNAME", "yobleck")
-                        os.putenv("TERM", "xterm-256color")
-                        os.putenv("DISPLAY", ":1")
+
+                        with open("/home/yobleck/qdm/envars.json", "r") as f:
+                            envars = json.load(f)
+                            for key, value in envars.items():
+                                os.putenv(key, value)
+
                         # create .Xauthority file https://github.com/fairyglade/ly/blob/609b3f9ddcb8e953884002745eca5fde8480802f/src/login.c#L307
-                        os.putenv("XAUTHORITY", "/home/yobleck/.qdm_xauth")
+                        os.chdir("/home/yobleck")
                         os.system("/usr/bin/xauth add :1 . `/usr/bin/mcookie`")  # /usr/bin/bash -c
 
-                        # start DE/WM TODO systemd user session/slice/scope
+                        # start DE/WM TODO systemd pam
+                        #os.system("startx /usr/bin/qtile start")
+                        os.system("xinit /usr/bin/qtile start $* -- :1 vt3")
+
                         #os.system("/usr/bin/bash /home/yobleck/qdm/xsetup.sh " + config["xsessions"][config_values[0]][1])
                         #os.system(config["xsessions"][config_values[0]][1])
                         #os.system("systemd-run --no-ask-password --slice=user --user startx /usr/bin/qtile start")
-                        os.system("startx /usr/bin/qtile start")
                         #os.system("/usr/bin/bash --login 2>&1")  # subprocess?
                         #os.system("/usr/bin/login -p -f yobleck")
                         #os.execl("/usr/bin/bash", "/usr/bin/bash", ">", "/dev/tty3", "2>&1")
@@ -234,6 +223,7 @@ def main() -> int:
                     # /usr/lib/systemd/systemd-logind
                     # systemctl --user start qdm.target ?
                     # https://www.freedesktop.org/software/systemd/python-systemd/
+                    # https://linuxconfig.org/how-to-run-x-applications-without-a-desktop-or-a-wm
 
                     # List of TODO
                     # move check pass and all auth/login/startup stuff to auth.py

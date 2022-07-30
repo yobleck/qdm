@@ -1,6 +1,6 @@
 [Unit]
 Description=Q Display Manager
-After=systemd-user-sessions.service plymouth-quit-wait.service
+After=systemd-user-sessions.service plymouth-quit-wait.service dbus.service
 Conflicts=getty@tty3.service
 
 [Service]
