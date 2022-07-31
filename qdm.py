@@ -1,12 +1,10 @@
 import crypt
 import json
-import shlex
+import os
 import shutil
 import sys
 import termios
 import time
-
-import os  # temporary for password testing without root
 
 import animations
 import dbus_test
@@ -36,39 +34,52 @@ def handle_esc() -> str:
     if a == "[":
         k = getch(False)  # assuming 3 bytes for now
         if k in esc_chars.keys():
-            if k in ["5","6"]:
+            if k in ["5", "6"]:
                 getch(False)  # eat useless ~ char
             return esc_chars[k]
         return "esc[ error: " + a + k
     return "esc"
 
+class Menu:
+    def __init__(self, screen_width: int, screen_height: int, config: dict):
+        self.config = config  # pass by reference
+        # precalculate size of menu box
+        self.w4: int = screen_width//4
+        self.cntr_scrn: int = screen_width//2 - self.w4//2
+        self.h2: int = screen_height//2
 
-def menu_frmt(w: int, s: str, hi: bool) -> str:
-    """Adds border, space padding and highlights line (hi).
-    TODO add colors
-    """
-    if len(s) < w:
-        return "\u2502" + "\x1b[7m"*(int(hi)) + s + "\x1b[27m"*(int(hi)) + " "*(w - len(s)) + "\u2502"
-    else:
-        return "\u2502" + s[:w] + "\u2502"
+        # what has been selected.
+        # NOTE these values will be changed from outside the object cause I don't feel like implementing getters/setters
+        self.field_in_focus: int = 0  # 0-2 xsess, username, password
+        self.config_values: list = [0, 0]  # xsess, username
+        self.password_len: int = 0
+        self.error_msg: str = "er"
 
+        # static values of contents of menu box
+        self.top_border: str = f"\x1b[{self.h2-1};{self.cntr_scrn}H\u250c{'─'*self.w4}\u2510"  # ─ = \u2500 unicode character
+        self.vt: str = f"\x1b[{self.h2};{self.cntr_scrn}H{self.menu_frmt('QDM: vt' + str(self.config['vt']), False)}"
+        self.bottom_border: str = f"\x1b[{self.h2+5};{self.cntr_scrn}H\u2514{'─'*self.w4}\u2518"
 
-def draw_menu(w: int, h2: int, cfg: dict, foc: int, cv: list, ps: int, er: str) -> None:
-    # TODO move to animations and add diff version that appends to the animation diff frame
-    print("\x1b[H", end="")  # reset cursor
-    foc += 1  # to account for header offset
-    w4 = w//4  # avoid repeating math
-    cw = w//2-w4//2  # center of screen
-    print("\x1b[" + str(h2-1) + ";" + str(cw) + "H\u250c" + "\u2500"*(w4) + "\u2510", end="")  # box top
-    for i, x in enumerate(["QDM: vt" + str(cfg["vt"]),
-                           "XSession: " + str(cfg["xsessions"][cv[0]][0]),
-                           "Username: " + str(cfg["usernames"][cv[1]]),
-                           "Password: " + ps*"*",
-                           er]):
-        print("\x1b[" + str(h2+i) + ";" + str(cw) + "H" + menu_frmt(w4, x, (i == foc)))
+    def draw(self) -> None:
+        print(self.top_border)
+        print(self.vt)
+        print(f"\x1b[{self.h2+1};{self.cntr_scrn}H"
+              f"{self.menu_frmt('Session: ' + str(self.config['sessions'][self.config_values[0]][0]), (self.field_in_focus == 0))}")
+        print(f"\x1b[{self.h2+2};{self.cntr_scrn}H"
+              f"{self.menu_frmt('Username: ' + str(self.config['usernames'][self.config_values[1]]), (self.field_in_focus == 1))}")
+        print(f"\x1b[{self.h2+3};{self.cntr_scrn}H"
+              f"{self.menu_frmt('Password: ' + '*'*self.password_len, (self.field_in_focus == 2))}")
+        print(f"\x1b[{self.h2+4};{self.cntr_scrn}H{self.menu_frmt(self.error_msg, False)}")
+        print(self.bottom_border)
 
-    print("\x1b[" + str(h2+i+1) + ";" + str(cw) + "H\u2514" + "\u2500"*(w4) + "\u2518")  # box bottom
-
+    def menu_frmt(self, line: str, is_hilite: bool) -> str:
+        """Adds border, space padding and highlights line (hi).
+        TODO add colors
+        """
+        if len(line) < self.w4:
+            return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line + "\x1b[27m"*(int(is_hilite)) + " "*(self.w4 - len(line)) + "\u2502"
+        else:
+            return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line[:self.w4] + "\x1b[27m"*(int(is_hilite)) + "\u2502"
 
 def check_pass(uname: str, psswd: str) -> bool:
     """Search for username in /etc/shadow
@@ -100,27 +111,15 @@ def check_pass(uname: str, psswd: str) -> bool:
 
 
 def main() -> int:
-    """try:
-        dbus_test.sys_test()
-        #pass
-    except Exception as e:
-        with open("/home/yobleck/qdm/test.log", "a") as f:
-            f.write(str(e) + "\n")
-    print("\x1b[2J\x1b[H", end="")  # clear screen
-    print("brirb")"""
-
 
     with open("/home/yobleck/qdm/config.json", "r") as f:
         # TODO grep list of .desktop files from /usr/share/xsessions
         config = json.load(f)
 
     w, h = shutil.get_terminal_size()
-    h2 = h//2
+    menu = Menu(w, h, config)
 
-    error_msg = ""
     password = ""
-    field_in_focus = 0  # 0-2 xsess, username, password
-    config_values = [0,0]  # xsess, username TODO hacky fix this
 
     print("\x1b[2J\x1b[H", end="")  # clear screen
     print("\x1b[?25l", end="")  # hide cursor
@@ -137,7 +136,7 @@ def main() -> int:
             frame = animations.text_rain_diff(w, h, frame)
             animations.draw_animation_diff(frame)
 
-        draw_menu(w, h2, config, field_in_focus, config_values, len(password), error_msg)
+        menu.draw()
 
         char = getch(True)  # TODO keys for shutdown/reboot/switch to agetty
 
@@ -148,31 +147,34 @@ def main() -> int:
                 if char == "esc":
                     break
 
-                elif char == "up" and field_in_focus > 0:
-                    field_in_focus -= 1
-                elif char == "dn" and field_in_focus < 2:
-                    field_in_focus += 1
+                elif char == "up" and menu.field_in_focus > 0:
+                    menu.field_in_focus -= 1
+                elif char == "dn" and menu.field_in_focus < 2:
+                    menu.field_in_focus += 1
 
-                elif char == "rt" and field_in_focus <= 1:
-                    if config_values[field_in_focus] < len(list(config.values())[field_in_focus+1])-1:
-                        config_values[field_in_focus] += 1
-                elif char == "lf" and field_in_focus <= 1:
-                    if config_values[field_in_focus] > 0:
-                        config_values[field_in_focus] -= 1
+                elif char == "rt" and menu.field_in_focus <= 1:
+                    if menu.config_values[menu.field_in_focus] < len(list(config.values())[menu.field_in_focus+1])-1:
+                        menu.config_values[menu.field_in_focus] += 1
+                elif char == "lf" and menu.field_in_focus <= 1:
+                    if menu.config_values[menu.field_in_focus] > 0:
+                        menu.config_values[menu.field_in_focus] -= 1
 
-            elif field_in_focus == 2 and char in ["\b", "\x08", "\x7f"]:  # \x08=ctrl+h
+            elif menu.field_in_focus == 2 and char in ["\b", "\x08", "\x7f"]:  # \x08=ctrl+h
                 password = password[:-1]  # backspace password
+                menu.password_len -= 1 if menu.password_len > 0 else 0
 
-            elif field_in_focus == 2 and len(char) == 1 and char not in ["\n", "\r", "\t"]:
+            elif menu.field_in_focus == 2 and len(char) == 1 and char not in ["\n", "\r", "\t", "\v", "\a"]:
                 # line above tries to eliminate non text inputs
                 password += char  # password input
+                menu.password_len += 1
 
             # verify password
             elif char in ["\n", "\r"]:
-                can_pass = check_pass(config["usernames"][config_values[1]], password)
+                can_pass = check_pass(config["usernames"][menu.config_values[1]], password)
                 if can_pass:
-                    error_msg = "success"
+                    menu.error_msg = "success"
                     password = ""
+                    menu.password_len = 0
                     print("\x1b[2J\x1b[H", end="")
                     print("\x1b[?25h", end="")  # unhide cursor
 
@@ -199,19 +201,18 @@ def main() -> int:
 
                         # start DE/WM TODO systemd pam
                         #os.system("startx /usr/bin/qtile start")
-                        os.system("xinit /usr/bin/qtile start $* -- :1 vt3")
-
-                        #os.system("/usr/bin/bash /home/yobleck/qdm/xsetup.sh " + config["xsessions"][config_values[0]][1])
-                        #os.system(config["xsessions"][config_values[0]][1])
-                        #os.system("systemd-run --no-ask-password --slice=user --user startx /usr/bin/qtile start")
+                        os.system("xinit /usr/bin/qtile start $* -- :1 vt3")  # TODO other sessions as well
                         #os.system("/usr/bin/bash --login 2>&1")  # subprocess?
+
+                        #os.system("/usr/bin/bash /home/yobleck/qdm/xsetup.sh " + config["sessions"][config_values[0]][1])
+                        #os.system(config["sessions"][config_values[0]][1])
+                        #os.system("systemd-run --no-ask-password --slice=user --user startx /usr/bin/qtile start")
                         #os.system("/usr/bin/login -p -f yobleck")
                         #os.execl("/usr/bin/bash", "/usr/bin/bash", ">", "/dev/tty3", "2>&1")
                         break
 
                     # https://wiki.archlinux.org/title/systemd/User
                     # actually run *.desktop file or just run start command from config file?
-
                     # https://unix.stackexchange.com/questions/170063/start-a-process-on-a-different-tty
                     # setsid sh -c -f 'exec python /home/yobleck/qdm/qdm.py <> /dev/tty3 >&0 2>&1'
 
@@ -236,8 +237,9 @@ def main() -> int:
                     # try pip install python-pam
                     print("\x1b[?25l", end="")
                 else:
-                    error_msg = "wrong password, try again"
+                    menu.error_msg = "wrong password, try again"  # TODO sleep for X seconds on every fail
                     password = ""
+                    menu.password_len = 0
 
     # exit stuff
     # TODO keep running in background when de/wm is running
