@@ -8,10 +8,11 @@ import termios
 import time
 
 import animations
-import dbus_test
+#import dbus_test
 
 # WARNING BUG user input shows up on left side of screen
 # even though termios.ECHO is turned off and screen is being cleared
+# update: possibly fixed
 def getch(blocking: bool = True) -> str:
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
@@ -54,7 +55,7 @@ class Menu:
         self.field_in_focus: int = 0  # 0-2 xsess, username, password
         self.config_values: list = [0, 0]  # xsess, username
         self.password_len: int = 0
-        self.error_msg: str = "er"
+        self.error_msg: str = ""
 
         # static values of contents of menu box
         self.top_border: str = f"\x1b[{self.h2-1};{self.cntr_scrn}H\u250c{'─'*self.w4}\u2510"  # ─ = \u2500 unicode character
@@ -171,11 +172,9 @@ def main() -> int:
 
             # verify password
             elif char in ["\n", "\r"]:
-                can_pass = check_pass(config["usernames"][menu.config_values[1]], password)
+                can_pass = check_pass(config["usernames"][menu.config_values[1]], password)  # TODO replace this with PAM
                 if can_pass:
                     menu.error_msg = "success"
-                    temp_pass = password
-                    password = ""
                     menu.password_len = 0
                     print("\x1b[2J\x1b[H", end="")
                     print("\x1b[?25h", end="")  # unhide cursor
@@ -183,22 +182,23 @@ def main() -> int:
                     pid = os.fork()
 
                     if pid > 0:
-                        dbus_test.sys_test(pid)  # TODO PAM
-                        p_obj = pam.PamAuthenticator()
-                        pam_obj.authenticate("yobleck", temp_pass, call_end=False)  # , env={"XDG_SEAT": "seat0"}
-                        pam_obj.putenv("TEST=xyz")
-                        pam_obj.open_session()
+                        password = ""
+                        #dbus_test.sys_test(pid)  # TODO remove
                         os.waitpid(pid, 0)
-                        pam_obj.close_session()
-                        pam_obj.end()
 
                     elif pid == 0:
                         time.sleep(0.5)
+                        pam_obj = pam.PamAuthenticator()
+                        pam_obj.authenticate("yobleck", password, call_end=False)
+                        password = ""
+                        pam_obj.putenv("TEST=xyz")
+                        pam_obj.open_session()
+
                         # set env vars. TODO more stuff from printenv
                         os.setgid(1000)
                         os.setuid(1000)
-
                         with open("/home/yobleck/qdm/envars.json", "r") as f:
+                            # TODO dynamically get session_id, display
                             envars = json.load(f)
                             for key, value in envars.items():
                                 os.putenv(key, value)
@@ -207,7 +207,7 @@ def main() -> int:
                         os.chdir("/home/yobleck")
                         os.system("/usr/bin/xauth add :1 . `/usr/bin/mcookie`")  # /usr/bin/bash -c
 
-                        # start DE/WM TODO systemd pam
+                        # start DE/WM
                         #os.system("startx /usr/bin/qtile start")
                         os.system("xinit /usr/bin/qtile start $* -- :1 vt3")  # TODO other sessions as well
                         #os.system("/usr/bin/bash --login 2>&1")  # subprocess?
@@ -217,6 +217,9 @@ def main() -> int:
                         #os.system("systemd-run --no-ask-password --slice=user --user startx /usr/bin/qtile start")
                         #os.system("/usr/bin/login -p -f yobleck")
                         #os.execl("/usr/bin/bash", "/usr/bin/bash", ">", "/dev/tty3", "2>&1")
+
+                        pam_obj.close_session()
+                        pam_obj.end()
                         break
 
                     # https://wiki.archlinux.org/title/systemd/User
@@ -248,10 +251,9 @@ def main() -> int:
                     menu.error_msg = "wrong password, try again in 3s"  # TODO sleep for X seconds on every fail
                     password = ""
                     menu.password_len = 0
-                    #time.sleep(3)
+                    time.sleep(3)
 
     # exit stuff
-    # TODO keep running in background when de/wm is running
     del password  # security?
     print("\x1b[2J\x1b[H", end="")
     return 0
