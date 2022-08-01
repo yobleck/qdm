@@ -1,13 +1,14 @@
 import crypt  # WARNING deprecated
 import json
 import os
+import pam
 import shutil
 import sys
 import termios
 import time
 
 import animations
-import dbus
+import dbus_test
 
 # WARNING BUG user input shows up on left side of screen
 # even though termios.ECHO is turned off and screen is being cleared
@@ -173,6 +174,7 @@ def main() -> int:
                 can_pass = check_pass(config["usernames"][menu.config_values[1]], password)
                 if can_pass:
                     menu.error_msg = "success"
+                    temp_pass = password
                     password = ""
                     menu.password_len = 0
                     print("\x1b[2J\x1b[H", end="")
@@ -181,8 +183,14 @@ def main() -> int:
                     pid = os.fork()
 
                     if pid > 0:
-                        dbus.sys_test(pid)  # TODO PAM
+                        dbus_test.sys_test(pid)  # TODO PAM
+                        p_obj = pam.PamAuthenticator()
+                        pam_obj.authenticate("yobleck", temp_pass, call_end=False)  # , env={"XDG_SEAT": "seat0"}
+                        pam_obj.putenv("TEST=xyz")
+                        pam_obj.open_session()
                         os.waitpid(pid, 0)
+                        pam_obj.close_session()
+                        pam_obj.end()
 
                     elif pid == 0:
                         time.sleep(0.5)
