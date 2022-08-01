@@ -1,4 +1,4 @@
-import crypt
+import crypt  # WARNING deprecated
 import json
 import os
 import shutil
@@ -7,7 +7,7 @@ import termios
 import time
 
 import animations
-import dbus_test
+import dbus
 
 # WARNING BUG user input shows up on left side of screen
 # even though termios.ECHO is turned off and screen is being cleared
@@ -181,7 +181,7 @@ def main() -> int:
                     pid = os.fork()
 
                     if pid > 0:
-                        dbus_test.sys_test(pid)  # TODO PAM
+                        dbus.sys_test(pid)  # TODO PAM
                         os.waitpid(pid, 0)
 
                     elif pid == 0:
@@ -237,9 +237,10 @@ def main() -> int:
                     # try pip install python-pam
                     print("\x1b[?25l", end="")
                 else:
-                    menu.error_msg = "wrong password, try again"  # TODO sleep for X seconds on every fail
+                    menu.error_msg = "wrong password, try again in 3s"  # TODO sleep for X seconds on every fail
                     password = ""
                     menu.password_len = 0
+                    #time.sleep(3)
 
     # exit stuff
     # TODO keep running in background when de/wm is running
