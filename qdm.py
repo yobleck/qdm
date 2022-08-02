@@ -42,6 +42,7 @@ def handle_esc() -> str:
         return "esc[ error: " + a + k
     return "esc"
 
+
 class Menu:
     def __init__(self, screen_width: int, screen_height: int, config: dict):
         self.config = config  # pass by reference
@@ -52,17 +53,19 @@ class Menu:
 
         # what has been selected.
         # NOTE these values will be changed from outside the object cause I don't feel like implementing getters/setters
-        self.field_in_focus: int = 0  # 0-2 xsess, username, password
+        self.fields: list = ["sessions", "usernames", "password"]
+        self.field_in_focus: int = 0
         self.config_values: list = [0, 0]  # xsess, username
         self.password_len: int = 0
         self.error_msg: str = ""
 
         # static values of contents of menu box
         self.top_border: str = f"\x1b[{self.h2-1};{self.cntr_scrn}H\u250c{'─'*self.w4}\u2510"  # ─ = \u2500 unicode character
-        self.vt: str = f"\x1b[{self.h2};{self.cntr_scrn}H{self.menu_frmt('QDM: vt' + str(self.config['vt']), False)}"
+        self.vt: str = f"\x1b[{self.h2};{self.cntr_scrn}H{self.menu_frmt('QDM: ' + str(self.config['vt']), False)}"
         self.bottom_border: str = f"\x1b[{self.h2+5};{self.cntr_scrn}H\u2514{'─'*self.w4}\u2518"
 
     def draw(self) -> None:
+        print("\x1b[34m", end="")  # TODO get color from config
         print(self.top_border)
         print(self.vt)
         print(f"\x1b[{self.h2+1};{self.cntr_scrn}H"
@@ -73,6 +76,7 @@ class Menu:
               f"{self.menu_frmt('Password: ' + '*'*self.password_len, (self.field_in_focus == 2))}")
         print(f"\x1b[{self.h2+4};{self.cntr_scrn}H{self.menu_frmt(self.error_msg, False)}")
         print(self.bottom_border)
+        print("\x1b[0m")
 
     def menu_frmt(self, line: str, is_hilite: bool) -> str:
         """Adds border, space padding and highlights line (hi).
@@ -82,6 +86,7 @@ class Menu:
             return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line + "\x1b[27m"*(int(is_hilite)) + " "*(self.w4 - len(line)) + "\u2502"
         else:
             return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line[:self.w4] + "\x1b[27m"*(int(is_hilite)) + "\u2502"
+
 
 def check_pass(uname: str, psswd: str) -> bool:
     """Search for username in /etc/shadow
@@ -112,11 +117,70 @@ def check_pass(uname: str, psswd: str) -> bool:
         return False
 
 
+def load_users_and_sessions():
+    vt = os.ttyname(0)
+    users = []
+    uids = []
+    gids = []
+    with open("/etc/passwd", "r") as f:
+        for line in f:
+            split = line.split(":")
+            if split[-1] not in ["/bin/false\n", "/usr/bin/nologin\n"]:
+                users.append(split[0])
+                uids.append(split[2])
+                gids.append(split[3])
+    sessions = []
+    for x in os.listdir("/usr/share/xsessions"):
+        name = ""
+        exec_cmd = ""
+        if x.split(".")[-1] == "desktop":
+            with open("/usr/share/xsessions/" + x, "r") as f:
+                for l in f:
+                    v = l.split("=")
+                    if v[0] == "Name":
+                        name = v[1].strip()
+                    elif v[0] == "Exec":
+                        exec_cmd = v[1].strip()
+            sessions.append([name, exec_cmd])
+
+    return {"vt": vt, "usernames": users, "uids": uids,
+    "gids": gids, "sessions": sessions}
+
+
+def load_envars() -> None:
+    """Load environment variables"""
+    # TODO put envars in dict and pass to pam.authenticate
+    os.setgid(1000)
+    os.setuid(1000)
+
+    for x in range(10):
+        if not os.path.exists(f"/tmp/.X{x}-lock"):
+            break
+    os.putenv("DISPLAY", f":{x}")
+    # os.putenv("XDG_VTNR", menu.config["vt"])
+
+    # misc other envars
+    with open("/home/yobleck/qdm/envars.json", "r") as f:
+        # TODO dynamically get session_id, display
+        envars = json.load(f)
+        for key, value in envars.items():
+            os.putenv(key, value)
+
+    # create .Xauthority file https://github.com/fairyglade/ly/blob/609b3f9ddcb8e953884002745eca5fde8480802f/src/login.c#L307
+    os.chdir("/home/yobleck")
+    os.system("/usr/bin/xauth add :1 . `/usr/bin/mcookie`")  # /usr/bin/bash -c
+
+
 def main() -> int:
 
-    with open("/home/yobleck/qdm/config.json", "r") as f:
+    #with open("/home/yobleck/qdm/config.json", "r") as f:
         # TODO grep list of .desktop files from /usr/share/xsessions
-        config = json.load(f)
+        # TODO get list of valid logins from cat /etc/passwd | grep -v /bin/false and /bin/nologin
+        # TODO get uid from /etc/passwd
+        #config = json.load(f)
+    config = load_users_and_sessions()
+    with open("/home/yobleck/qdm/test.log", "a") as f:
+        f.write(str(config) + "\n")
 
     w, h = shutil.get_terminal_size()
     menu = Menu(w, h, config)
@@ -154,8 +218,8 @@ def main() -> int:
                 elif char == "dn" and menu.field_in_focus < 2:
                     menu.field_in_focus += 1
 
-                elif char == "rt" and menu.field_in_focus <= 1:
-                    if menu.config_values[menu.field_in_focus] < len(list(config.values())[menu.field_in_focus+1])-1:
+                elif char == "rt" and menu.field_in_focus <= 1:  # TODO refactor this whole block
+                    if menu.config_values[menu.field_in_focus] < len(menu.config[menu.fields[menu.field_in_focus]])-1:
                         menu.config_values[menu.field_in_focus] += 1
                 elif char == "lf" and menu.field_in_focus <= 1:
                     if menu.config_values[menu.field_in_focus] > 0:
@@ -189,23 +253,13 @@ def main() -> int:
                     elif pid == 0:
                         time.sleep(0.5)
                         pam_obj = pam.PamAuthenticator()
-                        pam_obj.authenticate("yobleck", password, call_end=False)
+                        pam_obj.authenticate("yobleck", password, call_end=False)  # TODO load envars here?
                         password = ""
                         pam_obj.putenv("TEST=xyz")
                         pam_obj.open_session()
 
                         # set env vars. TODO more stuff from printenv
-                        os.setgid(1000)
-                        os.setuid(1000)
-                        with open("/home/yobleck/qdm/envars.json", "r") as f:
-                            # TODO dynamically get session_id, display
-                            envars = json.load(f)
-                            for key, value in envars.items():
-                                os.putenv(key, value)
-
-                        # create .Xauthority file https://github.com/fairyglade/ly/blob/609b3f9ddcb8e953884002745eca5fde8480802f/src/login.c#L307
-                        os.chdir("/home/yobleck")
-                        os.system("/usr/bin/xauth add :1 . `/usr/bin/mcookie`")  # /usr/bin/bash -c
+                        load_envars()
 
                         # start DE/WM
                         #os.system("startx /usr/bin/qtile start")
@@ -242,16 +296,12 @@ def main() -> int:
                     # systemd and non systemd options
                     # add to config systemd or not, lists of env vars, list of commands to be run
                     # change menu to be object that is built from config with proper methods and stuff
-                    # access logind via dbus org.freedesktop.login1.Manager method CreateSession via pam_ssytemd
-                    #   https://www.freedesktop.org/wiki/Software/systemd/logind/
-                    #   https://wiki.freedesktop.org/www/Software/systemd/dbus/
-                    # try pip install python-pam
                     print("\x1b[?25l", end="")
                 else:
                     menu.error_msg = "wrong password, try again in 3s"  # TODO sleep for X seconds on every fail
                     password = ""
                     menu.password_len = 0
-                    time.sleep(3)
+                    time.sleep(3)  # TODO doesn't stop user input
 
     # exit stuff
     del password  # security?

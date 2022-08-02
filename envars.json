@@ -12,6 +12,5 @@
     "USER": "yobleck",
     "LOGNAME": "yobleck",
     "TERM": "xterm-256color",
-    "DISPLAY": ":1",
     "XAUTHORITY": "/home/yobleck/.qdm_xauth"
 }
