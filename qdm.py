@@ -7,8 +7,13 @@ import sys
 import termios
 import time
 
+
 import animations
 #import dbus_test
+
+def log(i):
+    with open("/home/yobleck/qdm/test.log", "a") as f:
+        f.write(str(i) + "\n")
 
 # WARNING BUG user input shows up on left side of screen
 # even though termios.ECHO is turned off and screen is being cleared
@@ -119,6 +124,7 @@ def check_pass(uname: str, psswd: str) -> bool:
 
 def load_users_and_sessions():
     vt = os.ttyname(0)
+    # get list of valid logins from /etc/passwd
     users = []
     uids = []
     gids = []
@@ -127,8 +133,9 @@ def load_users_and_sessions():
             split = line.split(":")
             if split[-1] not in ["/bin/false\n", "/usr/bin/nologin\n"]:
                 users.append(split[0])
-                uids.append(split[2])
-                gids.append(split[3])
+                uids.append(int(split[2]))
+                gids.append(int(split[3]))
+    # get sessions and their launch commands
     sessions = []
     for x in os.listdir("/usr/share/xsessions"):
         name = ""
@@ -147,40 +154,42 @@ def load_users_and_sessions():
     "gids": gids, "sessions": sessions}
 
 
-def load_envars() -> None:
+def load_envars(menu) -> None:
     """Load environment variables"""
     # TODO put envars in dict and pass to pam.authenticate
-    os.setgid(1000)
-    os.setuid(1000)
+    # gtk modules envars?
+    os.setgid(menu.config["gids"][menu.config_values[1]])
+    log(menu.config["gids"][menu.config_values[1]])
+    os.setuid(menu.config["uids"][menu.config_values[1]])
 
     for x in range(10):
         if not os.path.exists(f"/tmp/.X{x}-lock"):
             break
-    os.putenv("DISPLAY", f":{x}")
+    os.environ["DISPLAY"] =  f":{x}"
+    os.environ["XAUTHORITY"] = "/home/yobleck/.qdm_xauth"
     # os.putenv("XDG_VTNR", menu.config["vt"])
 
     # misc other envars
-    with open("/home/yobleck/qdm/envars.json", "r") as f:
+    with open("/home/yobleck/qdm/envars.json", "r") as f:  # TODO move envars list and xsetup.sh and stuff to /etc/qdm/
         # TODO dynamically get session_id, display
         envars = json.load(f)
         for key, value in envars.items():
-            os.putenv(key, value)
+            #os.putenv(key, value)
+            os.environ[key] = value
 
     # create .Xauthority file https://github.com/fairyglade/ly/blob/609b3f9ddcb8e953884002745eca5fde8480802f/src/login.c#L307
     os.chdir("/home/yobleck")
-    os.system("/usr/bin/xauth add :1 . `/usr/bin/mcookie`")  # /usr/bin/bash -c
+    log(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")
+    os.system(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")  # /usr/bin/bash -c
+    # TODO return {}
 
 
 def main() -> int:
 
     #with open("/home/yobleck/qdm/config.json", "r") as f:
-        # TODO grep list of .desktop files from /usr/share/xsessions
-        # TODO get list of valid logins from cat /etc/passwd | grep -v /bin/false and /bin/nologin
-        # TODO get uid from /etc/passwd
         #config = json.load(f)
     config = load_users_and_sessions()
-    with open("/home/yobleck/qdm/test.log", "a") as f:
-        f.write(str(config) + "\n")
+    log(config)
 
     w, h = shutil.get_terminal_size()
     menu = Menu(w, h, config)
@@ -236,8 +245,11 @@ def main() -> int:
 
             # verify password
             elif char in ["\n", "\r"]:
-                can_pass = check_pass(config["usernames"][menu.config_values[1]], password)  # TODO replace this with PAM
-                if can_pass:
+                #can_pass = check_pass(menu.config["usernames"][menu.config_values[1]], password)  # TODO replace this with PAM
+                #if can_pass:
+                pam_obj = pam.PamAuthenticator()
+                if pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=True):
+                    #pam_obj.open_session()
                     menu.error_msg = "success"
                     menu.password_len = 0
                     print("\x1b[2J\x1b[H", end="")
@@ -252,44 +264,23 @@ def main() -> int:
 
                     elif pid == 0:
                         time.sleep(0.5)
-                        pam_obj = pam.PamAuthenticator()
+                        #pam_obj = pam.PamAuthenticator()
                         pam_obj.authenticate("yobleck", password, call_end=False)  # TODO load envars here?
                         password = ""
-                        pam_obj.putenv("TEST=xyz")
+                        #pam_obj.putenv("TEST=xyz")
                         pam_obj.open_session()
 
                         # set env vars. TODO more stuff from printenv
-                        load_envars()
+                        load_envars(menu)
 
                         # start DE/WM
-                        #os.system("startx /usr/bin/qtile start")
-                        os.system("xinit /usr/bin/qtile start $* -- :1 vt3")  # TODO other sessions as well
+                        os.system("startx /usr/bin/qtile start")
+                        #os.system("xinit /usr/bin/qtile start $* -- :1 vt3")  # TODO other sessions as well
                         #os.system("/usr/bin/bash --login 2>&1")  # subprocess?
-
-                        #os.system("/usr/bin/bash /home/yobleck/qdm/xsetup.sh " + config["sessions"][config_values[0]][1])
-                        #os.system(config["sessions"][config_values[0]][1])
-                        #os.system("systemd-run --no-ask-password --slice=user --user startx /usr/bin/qtile start")
-                        #os.system("/usr/bin/login -p -f yobleck")
-                        #os.execl("/usr/bin/bash", "/usr/bin/bash", ">", "/dev/tty3", "2>&1")
 
                         pam_obj.close_session()
                         pam_obj.end()
                         break
-
-                    # https://wiki.archlinux.org/title/systemd/User
-                    # actually run *.desktop file or just run start command from config file?
-                    # https://unix.stackexchange.com/questions/170063/start-a-process-on-a-different-tty
-                    # setsid sh -c -f 'exec python /home/yobleck/qdm/qdm.py <> /dev/tty3 >&0 2>&1'
-
-                    # https://www.gulshansingh.com/posts/how-to-write-a-display-manager/
-                    # https://www.freedesktop.org/software/systemd/man/systemd.directives.html
-                    # /usr/lib/systemd/systemd --unit=qdm.service ?
-                    # systemd-run https://www.freedesktop.org/software/systemd/man/systemd-run.html
-                    # systemd-user-[runtime-dir, sessions start]  https://www.freedesktop.org/software/systemd/man/user@.service.html#user-
-                    # /usr/lib/systemd/systemd-logind
-                    # systemctl --user start qdm.target ?
-                    # https://www.freedesktop.org/software/systemd/python-systemd/
-                    # https://linuxconfig.org/how-to-run-x-applications-without-a-desktop-or-a-wm
 
                     # List of TODO
                     # move check pass and all auth/login/startup stuff to auth.py

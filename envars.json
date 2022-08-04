@@ -1,7 +1,9 @@
 {
+    "XAUTHORITY": "/home/yobleck/.qdm_xauth",
 	"QT_QPA_PLATFORMTHEME": "qt5ct",
     "XCURSOR_THEME": "breeze_cursors",
     "XDG_RUNTIME_DIR": "/run/user/1000",
+    "XDG_CONFIG_HOME": "/home/yobleck/.config",
     "XDG_SEAT": "seat0",
     "XDG_VTNR": "3",
     "XDG_SESSION_CLASS": "user",
@@ -12,5 +14,5 @@
     "USER": "yobleck",
     "LOGNAME": "yobleck",
     "TERM": "xterm-256color",
-    "XAUTHORITY": "/home/yobleck/.qdm_xauth"
+    "SHELL": "/bin/bash"
 }
