@@ -93,35 +93,6 @@ class Menu:
             return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line[:self.w4] + "\x1b[27m"*(int(is_hilite)) + "\u2502"
 
 
-def check_pass(uname: str, psswd: str) -> bool:
-    """Search for username in /etc/shadow
-    then compare user inputted password
-    to the one on file
-    """
-    if os.getuid != 0:  # NOTE temporary for testing without root. please delete p.json when done
-        with open("/home/yobleck/qdm/p.json", "r") as f:
-            test = json.load(f)
-            salt = test["salt"]
-            salt_pass_from_file = test["pass"]
-            del test
-    elif os.getuid == 0:  # NOTE root only
-        with open("/etc/shadow", "r") as f:
-            for l in f.readlines():
-                i = l.split(":")
-                if i[0] == uname:
-                    salt_pass_from_file = i[1]
-                    salt = salt_pass_from_file.rsplit("$", maxsplit=1)[0]
-
-    if crypt.crypt(psswd, salt) == salt_pass_from_file:  # actual pswd hashing
-        del salt_pass_from_file
-        del salt
-        return True
-    else:
-        del salt_pass_from_file
-        del salt
-        return False
-
-
 def load_users_and_sessions():
     vt = os.ttyname(0)
     # get list of valid logins from /etc/passwd
@@ -157,9 +128,9 @@ def load_users_and_sessions():
 def load_envars(menu) -> None:
     """Load environment variables"""
     # TODO put envars in dict and pass to pam.authenticate
-    # gtk modules envars?
+    # gtk modules envars? and start xdg-desktop.service?
     os.setgid(menu.config["gids"][menu.config_values[1]])
-    log(menu.config["gids"][menu.config_values[1]])
+    #log(menu.config["gids"][menu.config_values[1]])
     os.setuid(menu.config["uids"][menu.config_values[1]])
 
     for x in range(10):
@@ -171,7 +142,7 @@ def load_envars(menu) -> None:
 
     # misc other envars
     with open("/home/yobleck/qdm/envars.json", "r") as f:  # TODO move envars list and xsetup.sh and stuff to /etc/qdm/
-        # TODO dynamically get session_id, display
+        # TODO dynamically get session_id
         envars = json.load(f)
         for key, value in envars.items():
             #os.putenv(key, value)
@@ -179,7 +150,7 @@ def load_envars(menu) -> None:
 
     # create .Xauthority file https://github.com/fairyglade/ly/blob/609b3f9ddcb8e953884002745eca5fde8480802f/src/login.c#L307
     os.chdir("/home/yobleck")
-    log(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")
+    #log(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")
     os.system(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")  # /usr/bin/bash -c
     # TODO return {}
 
@@ -245,8 +216,6 @@ def main() -> int:
 
             # verify password
             elif char in ["\n", "\r"]:
-                #can_pass = check_pass(menu.config["usernames"][menu.config_values[1]], password)  # TODO replace this with PAM
-                #if can_pass:
                 pam_obj = pam.PamAuthenticator()
                 if pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=True):
                     #pam_obj.open_session()
@@ -265,14 +234,14 @@ def main() -> int:
                     elif pid == 0:
                         time.sleep(0.5)
                         #pam_obj = pam.PamAuthenticator()
-                        pam_obj.authenticate("yobleck", password, call_end=False)  # TODO load envars here?
+                        pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=False)  # TODO load envars here?
                         password = ""
                         #pam_obj.putenv("TEST=xyz")
                         pam_obj.open_session()
 
                         # set env vars. TODO more stuff from printenv
                         load_envars(menu)
-
+                        #xcb.connect here?
                         # start DE/WM
                         os.system("startx /usr/bin/qtile start")
                         #os.system("xinit /usr/bin/qtile start $* -- :1 vt3")  # TODO other sessions as well
