@@ -138,8 +138,8 @@ def load_envars(menu) -> None:
     os.environ["DISPLAY"] =  f":{x}"
     os.environ["XAUTHORITY"] = "/home/yobleck/.qdm_xauth"
     os.environ["XDG_VTNR"] = menu.config["vt"]
-        with open(f"/proc/{os.getpid()}/sessionid", "r") as f:
-            os.environ["XDG_SESSION_ID"] = f.readline().strip()
+    with open(f"/proc/{os.getpid()}/sessionid", "r") as f:
+        os.environ["XDG_SESSION_ID"] = f.readline().strip()
 
     # misc other envars
     with open("/home/yobleck/qdm/envars.json", "r") as f:  # TODO move envars list and xsetup.sh and stuff to /etc/qdm/
