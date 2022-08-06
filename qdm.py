@@ -1,15 +1,15 @@
-import crypt  # WARNING deprecated
 import json
 import os
 import pam
 import shutil
+import subprocess
 import sys
 import termios
 import time
 
 
 import animations
-#import dbus_test
+
 
 def log(i):
     with open("/home/yobleck/qdm/test.log", "a") as f:
@@ -66,7 +66,7 @@ class Menu:
 
         # static values of contents of menu box
         self.top_border: str = f"\x1b[{self.h2-1};{self.cntr_scrn}H\u250c{'─'*self.w4}\u2510"  # ─ = \u2500 unicode character
-        self.vt: str = f"\x1b[{self.h2};{self.cntr_scrn}H{self.menu_frmt('QDM: ' + str(self.config['vt']), False)}"
+        self.vt: str = f"\x1b[{self.h2};{self.cntr_scrn}H{self.menu_frmt('QDM vt:' + str(self.config['vt']), False)}"
         self.bottom_border: str = f"\x1b[{self.h2+5};{self.cntr_scrn}H\u2514{'─'*self.w4}\u2518"
 
     def draw(self) -> None:
@@ -94,7 +94,7 @@ class Menu:
 
 
 def load_users_and_sessions():
-    vt = os.ttyname(0)
+    vt = os.ttyname(0)[-1]  # /dev/ttyX -> X
     # get list of valid logins from /etc/passwd
     users = []
     uids = []
@@ -127,10 +127,9 @@ def load_users_and_sessions():
 
 def load_envars(menu) -> None:
     """Load environment variables"""
-    # TODO put envars in dict and pass to pam.authenticate
-    # gtk modules envars? and start xdg-desktop.service?
+    # TODO put envars in dict and pass to pam.authenticate?
+    # TODO gtk modules envars? and start xdg-desktop.service?
     os.setgid(menu.config["gids"][menu.config_values[1]])
-    #log(menu.config["gids"][menu.config_values[1]])
     os.setuid(menu.config["uids"][menu.config_values[1]])
 
     for x in range(10):
@@ -138,7 +137,9 @@ def load_envars(menu) -> None:
             break
     os.environ["DISPLAY"] =  f":{x}"
     os.environ["XAUTHORITY"] = "/home/yobleck/.qdm_xauth"
-    # os.putenv("XDG_VTNR", menu.config["vt"])
+    os.environ["XDG_VTNR"] = menu.config["vt"]
+        with open(f"/proc/{os.getpid()}/sessionid", "r") as f:
+            os.environ["XDG_SESSION_ID"] = f.readline().strip()
 
     # misc other envars
     with open("/home/yobleck/qdm/envars.json", "r") as f:  # TODO move envars list and xsetup.sh and stuff to /etc/qdm/
@@ -148,17 +149,12 @@ def load_envars(menu) -> None:
             #os.putenv(key, value)
             os.environ[key] = value
 
-    # create .Xauthority file https://github.com/fairyglade/ly/blob/609b3f9ddcb8e953884002745eca5fde8480802f/src/login.c#L307
+    # create .Xauthority file https://github.com/fairyglade/ly/blob/master/src/login.c
     os.chdir("/home/yobleck")
-    #log(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")
-    os.system(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")  # /usr/bin/bash -c
-    # TODO return {}
+    os.system(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")  # replace with subprocess?
 
 
 def main() -> int:
-
-    #with open("/home/yobleck/qdm/config.json", "r") as f:
-        #config = json.load(f)
     config = load_users_and_sessions()
     log(config)
 
@@ -225,37 +221,33 @@ def main() -> int:
                     print("\x1b[?25h", end="")  # unhide cursor
 
                     pid = os.fork()
-
                     if pid > 0:
                         password = ""
-                        #dbus_test.sys_test(pid)  # TODO remove
                         os.waitpid(pid, 0)
 
                     elif pid == 0:
-                        time.sleep(0.5)
-                        #pam_obj = pam.PamAuthenticator()
                         pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=False)  # TODO load envars here?
                         password = ""
-                        #pam_obj.putenv("TEST=xyz")
                         pam_obj.open_session()
 
                         # set env vars. TODO more stuff from printenv
                         load_envars(menu)
-                        #xcb.connect here?
-                        # start DE/WM
-                        os.system("startx /usr/bin/qtile start")
-                        #os.system("xinit /usr/bin/qtile start $* -- :1 vt3")  # TODO other sessions as well
-                        #os.system("/usr/bin/bash --login 2>&1")  # subprocess?
 
+                        # start DE/WM
+                        #xorg = subprocess.Popen(["/usr/bin/X", ":1", "vt3"])
+                        xorg = subprocess.Popen(["/usr/bin/X", f"{os.environ['DISPLAY']}", f"vt{os.environ['XDG_VTNR']}"])
+                        time.sleep(0.5)  # should use xcb.connect() to verify connection is possible but too lazy
+                        #qtile = subprocess.Popen(["/usr/bin/qtile", "start"])
+                        # TODO other sessions as well. os.system("/usr/bin/bash --login 2>&1")  # subprocess?
+                        qtile = subprocess.Popen(["/usr/bin/sh", "/home/yobleck/qdm/xsetup.sh", "/usr/bin/qtile", "start"])
+                        qtile.wait()
+                        xorg.terminate()
                         pam_obj.close_session()
                         pam_obj.end()
                         break
 
                     # List of TODO
-                    # move check pass and all auth/login/startup stuff to auth.py
-                    # systemd and non systemd options
-                    # add to config systemd or not, lists of env vars, list of commands to be run
-                    # change menu to be object that is built from config with proper methods and stuff
+                    # non systemd option?
                     print("\x1b[?25l", end="")
                 else:
                     menu.error_msg = "wrong password, try again in 3s"  # TODO sleep for X seconds on every fail

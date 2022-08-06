@@ -1,4 +1,0 @@
-{"vt": 3,
-"sessions": [["plasma", "startx"], ["qtile", "startx /usr/bin/qtile start"], ["bash", "/usr/bin/bash --login 2>&1"]],
-"usernames": ["root", "yobleck", "test"]
-}
