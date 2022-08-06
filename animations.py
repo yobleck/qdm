@@ -95,7 +95,7 @@ if __name__ == "__main__":
             print()
         time.sleep(0.1)"""
 
-    a = init_still_image(h, w)
+    a = still_image_init(h, w)
     for x in a:
         for y in x:
             print(y, end="")

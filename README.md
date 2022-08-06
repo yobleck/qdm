@@ -2,13 +2,13 @@
 QDM is a terminal user interface(TUI) display/login manager written in Python(3.10) for Linux.
 
 ## Features
-    - choose between different desktop environments(DE)
-      and window managers(WM) via `/usr/share/xsessions/*.desktop` files
-      (TODO: wayland-session and bash shell).
+- choose between different desktop environments(DE)
+    and window managers(WM) via `/usr/share/xsessions/*.desktop` files
+    (TODO: wayland-session and bash shell).
 
-    - multiple user login options via `/etc/passwd`
+- multiple user login options via `/etc/passwd`
 
-    - ASCII art style animations.
+- ASCII art style animations.
 
 ## Why
 This DM is heavily inspired by/shamelessly ripped off of [Ly](https://github.com/fairyglade/ly) another TUI DM.
@@ -17,12 +17,20 @@ and relies on a number of unwieldy/unnecessary dependencies.
 
 QDM is a hobby project and security is not my strong suit so feel free to critique that.
 
+## Dependencies
+- python (tested on 3.10)
+- systemd
+- pamd
+- python-pam (tested with 2.0.2)
+- Xorg/X11
+- only tested with [qtile](https://github.com/qtile/qtile) wm so far
+
 ## TODO Config Format
-    - default session
+- default session
 
-    - default username
+- default username
 
-    - menu color
+- menu color
 
-    - systemd/logind/pam vs not those
+- systemd/logind/pam vs not those
 
