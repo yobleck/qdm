@@ -1,5 +1,6 @@
 /__pycache__
 auth_test.py
+dbus_test.py
 p.json
 test.py
 x_test.py
