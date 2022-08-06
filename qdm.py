@@ -107,6 +107,7 @@ def load_users_and_sessions():
                 uids.append(int(split[2]))
                 gids.append(int(split[3]))
     # get sessions and their launch commands
+    # TODO wayland-sessions
     sessions = []
     for x in os.listdir("/usr/share/xsessions"):
         name = ""
@@ -146,7 +147,6 @@ def load_envars(menu) -> None:
         # TODO dynamically get session_id
         envars = json.load(f)
         for key, value in envars.items():
-            #os.putenv(key, value)
             os.environ[key] = value
 
     # create .Xauthority file https://github.com/fairyglade/ly/blob/master/src/login.c
@@ -234,12 +234,10 @@ def main() -> int:
                         load_envars(menu)
 
                         # start DE/WM
-                        #xorg = subprocess.Popen(["/usr/bin/X", ":1", "vt3"])
                         xorg = subprocess.Popen(["/usr/bin/X", f"{os.environ['DISPLAY']}", f"vt{os.environ['XDG_VTNR']}"])
                         time.sleep(0.5)  # should use xcb.connect() to verify connection is possible but too lazy
-                        #qtile = subprocess.Popen(["/usr/bin/qtile", "start"])
                         # TODO other sessions as well. os.system("/usr/bin/bash --login 2>&1")  # subprocess?
-                        qtile = subprocess.Popen(["/usr/bin/sh", "/home/yobleck/qdm/xsetup.sh", "/usr/bin/qtile", "start"])
+                        qtile = subprocess.Popen(["/usr/bin/sh", "/home/yobleck/qdm/etc/qdm/xsetup.sh", "/usr/bin/qtile", "start"])
                         qtile.wait()
                         xorg.terminate()
                         pam_obj.close_session()
