@@ -11,8 +11,12 @@ import pam
 import animations
 
 
+INSTALL_PATH = "/home/yobleck/qdm"  # replace with read from config
+ETC_PATH = "/home/yobleck/qdm/etc/qdm"  # how to get this without knowing where it is?
+
+
 def log(i):
-    with open("/home/yobleck/qdm/test.log", "a") as f:
+    with open(f"{INSTALL_PATH}/test.log", "a") as f:
         f.write(str(i) + "\n")
 
 
@@ -127,7 +131,7 @@ def load_users_and_sessions() -> dict:
             return_val["sessions"].append([name, exec_cmd])
 
     # get default username and session from config
-    with open("/home/yobleck/qdm/etc/qdm/config.json", "r") as f:
+    with open(f"{ETC_PATH}/config.json", "r") as f:
         defaults = json.load(f)
     if defaults["default_username"] in return_val["usernames"]:
         return_val["default_username"] = return_val["usernames"].index(defaults["default_username"])
@@ -154,20 +158,19 @@ def load_envars(menu) -> None:
         if not os.path.exists(f"/tmp/.X{x}-lock"):
             break
     os.environ["DISPLAY"] =  f":{x}"
-    #os.environ["XAUTHORITY"] = "/home/yobleck/.qdm_xauth"
     os.environ["XDG_VTNR"] = menu.config["vt"]
     with open(f"/proc/{os.getpid()}/sessionid", "r") as f:
         os.environ["XDG_SESSION_ID"] = f.readline().strip()
 
     # misc other envars
-    with open("/home/yobleck/qdm/etc/qdm/envars.json", "r") as f:
+    with open(f"{ETC_PATH}/envars.json", "r") as f:
         envars = json.load(f)
     for key, value in envars.items():
         os.environ[key] = value
 
     # create .Xauthority file https://github.com/fairyglade/ly/blob/master/src/login.c
-    os.chdir("/home/yobleck")
-    os.system(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")  # replace with subprocess?
+    os.chdir(envars["HOME"])
+    os.system(f"/usr/bin/xauth add :{x} . `/usr/bin/mcookie`")
 
 
 def main() -> int:
@@ -253,7 +256,7 @@ def main() -> int:
                         xorg = subprocess.Popen(["/usr/bin/X", f"{os.environ['DISPLAY']}", f"vt{os.environ['XDG_VTNR']}"])
                         time.sleep(0.5)  # should use xcb.connect() to verify connection is possible but too lazy
                         # TODO other sessions as well. os.system("/usr/bin/bash --login 2>&1")  # subprocess?
-                        qtile = subprocess.Popen(["/usr/bin/sh", "/home/yobleck/qdm/etc/qdm/xsetup.sh", "/usr/bin/qtile", "start"])
+                        qtile = subprocess.Popen(["/usr/bin/sh", f"{ETC_PATH}/xsetup.sh", "/usr/bin/qtile", "start"])
                         qtile.wait()
                         xorg.terminate()
                         pam_obj.close_session()

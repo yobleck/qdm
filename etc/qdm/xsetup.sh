@@ -6,7 +6,7 @@
 # Copyright (C) 2001-2005 Oswald Buddenhagen <ossi@kde.org>
 
 # QDM version borrowed from Ly -Yobleck 2022
-printf "start xsetup.sh\n" >> /home/yobleck/qdm/test.log
+# printf "start xsetup.sh\n" >> /home/yobleck/qdm/test.log
 # Note that the respective logout scripts are not sourced.
 case $SHELL in
   */bash)
