@@ -1,4 +1,5 @@
 {
-"remmember_session": "Qtile",
-"remember_username": "yobleck"
+"default_session": "Qtile",
+"default_username": "yobleck",
+"menu_color": "blue"
 }

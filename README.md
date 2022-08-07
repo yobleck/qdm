@@ -5,9 +5,7 @@ QDM is a terminal user interface(TUI) display/login manager written in Python(3.
 - choose between different desktop environments(DE)
     and window managers(WM) via `/usr/share/xsessions/*.desktop` files
     (TODO: wayland-session and bash shell).
-
 - multiple user login options via `/etc/passwd`
-
 - ASCII art style animations.
 
 ## Why
@@ -27,10 +25,6 @@ QDM is a hobby project and security is not my strong suit so feel free to critiq
 
 ## TODO Config Format
 - default session
-
 - default username
-
 - menu color
-
 - systemd/logind/pam vs not those
-

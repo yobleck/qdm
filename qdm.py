@@ -1,12 +1,12 @@
 import json
 import os
-import pam
 import shutil
 import subprocess
 import sys
 import termios
 import time
 
+import pam
 
 import animations
 
@@ -14,6 +14,7 @@ import animations
 def log(i):
     with open("/home/yobleck/qdm/test.log", "a") as f:
         f.write(str(i) + "\n")
+
 
 # WARNING BUG user input shows up on left side of screen
 # even though termios.ECHO is turned off and screen is being cleared
@@ -24,7 +25,7 @@ def getch(blocking: bool = True) -> str:
     new = list(old_settings)
     new[3] &= ~(termios.ICANON | termios.ECHO)
     new[6][termios.VMIN] = 1 if blocking else 0
-    new[6][termios.VTIME] = 1  # 0 is faster but causes bytes to slip through the cracks?
+    new[6][termios.VTIME] = 1  # 0 is faster but inputs appear on screen?
     termios.tcsetattr(fd, termios.TCSADRAIN, new)
     try:
         ch = sys.stdin.read(1)
@@ -59,8 +60,9 @@ class Menu:
         # what has been selected.
         # NOTE these values will be changed from outside the object cause I don't feel like implementing getters/setters
         self.fields: list = ["sessions", "usernames", "password"]
-        self.field_in_focus: int = 0
-        self.config_values: list = [0, 0]  # xsess, username
+        self.field_in_focus: int = 0  # session, username or password
+        self.config_values: list = [self.config["default_session"],
+                                    self.config["default_username"]]  # [session, username]
         self.password_len: int = 0
         self.error_msg: str = ""
 
@@ -85,7 +87,7 @@ class Menu:
 
     def menu_frmt(self, line: str, is_hilite: bool) -> str:
         """Adds border, space padding and highlights line (hi).
-        TODO add colors
+        TODO add colors and change to f strings
         """
         if len(line) < self.w4:
             return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line + "\x1b[27m"*(int(is_hilite)) + " "*(self.w4 - len(line)) + "\u2502"
@@ -93,43 +95,58 @@ class Menu:
             return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line[:self.w4] + "\x1b[27m"*(int(is_hilite)) + "\u2502"
 
 
-def load_users_and_sessions():
-    vt = os.ttyname(0)[-1]  # /dev/ttyX -> X
+def load_users_and_sessions() -> dict:
+    return_val: dict = {}
+    return_val["vt"] = os.ttyname(0)[-1]  # /dev/ttyX -> X
     # get list of valid logins from /etc/passwd
-    users = []
-    uids = []
-    gids = []
+    return_val["usernames"] = []
+    return_val["uids"] = []
+    return_val["gids"] = []
     with open("/etc/passwd", "r") as f:
         for line in f:
             split = line.split(":")
-            if split[-1] not in ["/bin/false\n", "/usr/bin/nologin\n"]:
-                users.append(split[0])
-                uids.append(int(split[2]))
-                gids.append(int(split[3]))
+            if split[-1] not in ["/bin/false\n", "/usr/bin/nologin\n", "/usr/bin/git-shell\n"]:
+                return_val["usernames"].append(split[0])
+                return_val["uids"].append(int(split[2]))
+                return_val["gids"].append(int(split[3]))
+
     # get sessions and their launch commands
     # TODO wayland-sessions
-    sessions = []
+    return_val["sessions"] = []
     for x in os.listdir("/usr/share/xsessions"):
         name = ""
         exec_cmd = ""
         if x.split(".")[-1] == "desktop":
             with open("/usr/share/xsessions/" + x, "r") as f:
-                for l in f:
-                    v = l.split("=")
+                for line in f:
+                    v = line.split("=")
                     if v[0] == "Name":
                         name = v[1].strip()
                     elif v[0] == "Exec":
                         exec_cmd = v[1].strip()
-            sessions.append([name, exec_cmd])
+            return_val["sessions"].append([name, exec_cmd])
 
-    return {"vt": vt, "usernames": users, "uids": uids,
-    "gids": gids, "sessions": sessions}
+    # get default username and session from config
+    with open("/home/yobleck/qdm/etc/qdm/config.json", "r") as f:
+        defaults = json.load(f)
+    if defaults["default_username"] in return_val["usernames"]:
+        return_val["default_username"] = return_val["usernames"].index(defaults["default_username"])
+    else:
+        return_val["default_username"] = 0
+    temp_sess = [s[0] for s in return_val["sessions"]]
+    if defaults["default_session"] in temp_sess:
+        return_val["default_session"] = temp_sess.index(defaults["default_session"])
+    else:
+        return_val["default_session"] = 0
+    return_val["menu_color"] = defaults["menu_color"]
+
+    return return_val
 
 
 def load_envars(menu) -> None:
     """Load environment variables"""
     # TODO put envars in dict and pass to pam.authenticate?
-    # TODO gtk modules envars? and start xdg-desktop.service?
+    # TODO gtk modules envars?
     os.setgid(menu.config["gids"][menu.config_values[1]])
     os.setuid(menu.config["uids"][menu.config_values[1]])
 
@@ -137,17 +154,16 @@ def load_envars(menu) -> None:
         if not os.path.exists(f"/tmp/.X{x}-lock"):
             break
     os.environ["DISPLAY"] =  f":{x}"
-    os.environ["XAUTHORITY"] = "/home/yobleck/.qdm_xauth"
+    #os.environ["XAUTHORITY"] = "/home/yobleck/.qdm_xauth"
     os.environ["XDG_VTNR"] = menu.config["vt"]
     with open(f"/proc/{os.getpid()}/sessionid", "r") as f:
         os.environ["XDG_SESSION_ID"] = f.readline().strip()
 
     # misc other envars
-    with open("/home/yobleck/qdm/envars.json", "r") as f:  # TODO move envars list and xsetup.sh and stuff to /etc/qdm/
-        # TODO dynamically get session_id
+    with open("/home/yobleck/qdm/etc/qdm/envars.json", "r") as f:
         envars = json.load(f)
-        for key, value in envars.items():
-            os.environ[key] = value
+    for key, value in envars.items():
+        os.environ[key] = value
 
     # create .Xauthority file https://github.com/fairyglade/ly/blob/master/src/login.c
     os.chdir("/home/yobleck")
@@ -226,7 +242,7 @@ def main() -> int:
                         os.waitpid(pid, 0)
 
                     elif pid == 0:
-                        pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=False)  # TODO load envars here?
+                        pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=False)
                         password = ""
                         pam_obj.open_session()
 
@@ -244,8 +260,6 @@ def main() -> int:
                         pam_obj.end()
                         break
 
-                    # List of TODO
-                    # non systemd option?
                     print("\x1b[?25l", end="")
                 else:
                     menu.error_msg = "wrong password, try again in 3s"  # TODO sleep for X seconds on every fail
