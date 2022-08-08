@@ -76,7 +76,7 @@ class Menu:
         self.bottom_border: str = f"\x1b[{self.h2+5};{self.cntr_scrn}H\u2514{'─'*self.w4}\u2518"
 
     def draw(self) -> None:
-        print("\x1b[34m", end="")  # TODO get color from config
+        print(self.config["menu_color"], end="")
         print(self.top_border)
         print(self.vt)
         print(f"\x1b[{self.h2+1};{self.cntr_scrn}H"
@@ -143,6 +143,7 @@ def load_users_and_sessions() -> dict:
     else:
         return_val["default_session"] = 0
     return_val["menu_color"] = defaults["menu_color"]
+    log(return_val["menu_color"])
 
     return return_val
 
@@ -233,7 +234,6 @@ def main() -> int:
             elif char in ["\n", "\r"]:
                 pam_obj = pam.PamAuthenticator()
                 if pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=True):
-                    #pam_obj.open_session()
                     menu.error_msg = "success"
                     menu.password_len = 0
                     print("\x1b[2J\x1b[H", end="")
@@ -242,13 +242,14 @@ def main() -> int:
                     pid = os.fork()
                     if pid > 0:
                         password = ""
+                        print("\x1b[2J\x1b[H", end="")
                         os.waitpid(pid, 0)
 
                     elif pid == 0:
                         pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=False)
                         password = ""
                         pam_obj.open_session()
-
+                        print("\x1b[2J\x1b[H", end="")
                         # set env vars. TODO more stuff from printenv
                         load_envars(menu)
 

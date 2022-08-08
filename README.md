@@ -23,8 +23,22 @@ QDM is a hobby project and security is not my strong suit so feel free to critiq
 - Xorg/X11
 - only tested with [qtile](https://github.com/qtile/qtile) wm so far
 
-## TODO Config Format
-- default session
-- default username
-- menu color
+## Install
+- No package manager support sorry :(
+- download zip off github or clone repo
+- copy contents of `./etc/` to `/etc/`
+- symlink qdm.service to `/etc/systemd/system/qdm.service` (optionally alias display-manager.service)
+- change envars to match your system
+
+## Config
+- all vaules in quotes
+- default_session: the value of `name=` in the xsession .desktop file
+- default_username: your username lowercase
+- menu_color: [ansi](https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797) escape sequence in quotes ("\u001b[34m" = blue)
+- install path and etc path are temporary
+- xauth and mcookie paths. See xauth(1) man for more details
+
+## TODO
 - systemd/logind/pam vs not those
+- default config files in `/etc/qdm/`
+- wayland-session
