@@ -64,9 +64,11 @@ class Menu:
         # what has been selected.
         # NOTE these values will be changed from outside the object cause I don't feel like implementing getters/setters
         self.fields: list = ["sessions", "usernames", "password"]
-        self.field_in_focus: int = 0  # session, username or password
         self.config_values: list = [self.config["default_session"],
                                     self.config["default_username"]]  # [session, username]
+        self.field_in_focus: int = 0  # session, username or password
+        if self.config_values[0] != 0 and self.config_values[1] != 0:
+            self.field_in_focus = 2
         self.password_len: int = 0
         self.error_msg: str = ""
 
