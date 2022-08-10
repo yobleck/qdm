@@ -2,9 +2,9 @@
 QDM is a terminal user interface(TUI) display/login manager written in Python(3.10) for Linux.
 
 ## Features
-- choose between different desktop environments(DE)
-    and window managers(WM) via `/usr/share/xsessions/*.desktop` files
-    (TODO: wayland-session and bash shell).
+- choose between different desktop environments(DE)<br>
+    and window managers(WM) via `/usr/share/xsessions/*.desktop` files<br>
+    (TODO: wayland-session, bash shell and xinit).
 - multiple user login options via `/etc/passwd`
 - ASCII art style animations.
 
@@ -21,17 +21,24 @@ QDM is a hobby project and security is not my strong suit so feel free to critiq
 - pamd
 - python-pam (tested with 2.0.2)
 - Xorg/X11
-- only tested with [qtile](https://github.com/qtile/qtile) wm so far
+- only tested with [Qtile](https://github.com/qtile/qtile) wm so far
+
+### files and paths that are expected to exist
+- `/etc/passwd`
+- `/etc/qdm/`
+- `/etc/pam.d/`
+- `/usr/lib/systemd/system/`
 
 ## Install
 - No package manager support sorry :(
 - download zip off github or clone repo
 - copy contents of `./etc/` to `/etc/`
-- symlink qdm.service to `/etc/systemd/system/qdm.service` (optionally alias display-manager.service)
-- change envars to match your system
+- symlink qdm.service to `/usr/lib/systemd/system/qdm.service`
+- symlink `/etc/systemd/system/display-manager.service` to qdm.service
+- change envars  in envars.json to match your system
 
 ## Config
-- all vaules in quotes
+- all values in quotes
 - default_session: the value of `name=` in the xsession .desktop file
 - default_username: your username lowercase
 - menu_color: [ansi](https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797) escape sequence in quotes ("\u001b[34m" = blue)
@@ -42,3 +49,5 @@ QDM is a hobby project and security is not my strong suit so feel free to critiq
 - systemd/logind/pam vs not those
 - default config files in `/etc/qdm/`
 - wayland-session
+- fix issue with certain programs not opening because they rely on a dbus connected systemd service that won't start
+    i.e. plasma-kactivitymanagerd.service, xdg-desktop-portal.service

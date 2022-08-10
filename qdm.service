@@ -1,7 +1,8 @@
 [Unit]
 Description=Q Display Manager
-After=systemd-user-sessions.service plymouth-quit-wait.service dbus.service
-Conflicts=getty@tty3.service
+After=systemd-user-sessions.service plymouth-quit-wait.service
+#Conflicts=getty@tty3.service
+After=getty@tty3.service
 
 [Service]
 Type=idle
@@ -15,5 +16,4 @@ TTYReset=yes
 TTYVHangup=yes
 
 [Install]
-WantedBy=multi-user.target
-#Alias=display-manager.service
+Alias=display-manager.service

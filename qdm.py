@@ -182,6 +182,7 @@ def main() -> int:
 
     w, h = shutil.get_terminal_size()
     menu = Menu(w, h, config)
+    os.system(f"chvt {menu.config['vt']}")  # change vt focus
 
     password = ""
 
