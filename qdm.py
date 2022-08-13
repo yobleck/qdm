@@ -20,10 +20,7 @@ def log(i):
         f.write(str(i) + "\n")
 
 
-# WARNING BUG user input shows up on left side of screen
-# even though termios.ECHO is turned off and screen is being cleared
-# update: possibly fixed
-def getch(blocking: bool = True) -> str:
+def getch(blocking: bool = True, bytes_to_read: int = 1) -> str:
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     new = list(old_settings)
@@ -32,30 +29,37 @@ def getch(blocking: bool = True) -> str:
     new[6][termios.VTIME] = 1  # 0 is faster but inputs appear on screen?
     termios.tcsetattr(fd, termios.TCSADRAIN, new)
     try:
-        ch = sys.stdin.read(1)
+        ch = sys.stdin.read(bytes_to_read)
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     return ch
 
 
-esc_chars = {"A": "up", "B": "dn", "C": "rt", "D": "lf", "Z": "shft+tb", "5": "pgup", "6": "pgdn"}
+esc_chars = {"[A": "up", "[B": "dn", "[C": "rt", "[D": "lf", "[F": "end", "[H": "home", "OP": "F1",
+            "OQ": "F2", "OR": "F3", "OS": "F4", "[Z": "shft+tb", "[5~": "pgup", "[6~": "pgdn",
+            "[15~": "F5", "[17~": "F6", "[18~": "F7", "[19~": "F8", "[20~": "F9", "[21~": "F10",
+            "[23~": "F11", "[24~": "F12"}
 
 
 def handle_esc() -> str:
-    a = getch(False)
-    if a == "[":
-        k = getch(False)  # assuming 3 bytes for now
-        if k in esc_chars.keys():
-            if k in ["5", "6"]:
-                getch(False)  # eat useless ~ char
-            return esc_chars[k]
-        return "esc[ error: " + a + k
-    return "esc"
+    """https://en.wikipedia.org/wiki/ANSI_escape_code
+    I don't know if this holds across all computers/keyboards
+    or is my setup just weird?"""
+    a = getch(False, 4)
+    if a in esc_chars.keys():
+        log(a)
+        return esc_chars[a]
+    elif a == "":
+        return "esc"
+    log("failed " + a)
+    return ""
 
 
 class Menu:
     def __init__(self, screen_width: int, screen_height: int, config: dict):
         self.config = config  # pass by reference
+        log(self.config)
+
         # precalculate size of menu box
         self.w4: int = screen_width//4
         self.cntr_scrn: int = screen_width//2 - self.w4//2
@@ -145,7 +149,6 @@ def load_users_and_sessions() -> dict:
     else:
         return_val["default_session"] = 0
     return_val["menu_color"] = defaults["menu_color"]
-    log(return_val["menu_color"])
 
     return return_val
 
@@ -177,11 +180,8 @@ def load_envars(menu) -> None:
 
 
 def main() -> int:
-    config = load_users_and_sessions()
-    log(config)
-
     w, h = shutil.get_terminal_size()
-    menu = Menu(w, h, config)
+    menu = Menu(w, h, load_users_and_sessions())
     os.system(f"chvt {menu.config['vt']}")  # change vt focus
 
     password = ""
@@ -189,8 +189,8 @@ def main() -> int:
     print("\x1b[2J\x1b[H", end="")  # clear screen
     print("\x1b[?25l", end="")  # hide cursor
     #frame = animations.text_rain_init(h, w)
-    frame = animations.text_rain_diff_init(w, h); animations.draw_animation_diff(frame)
-    #frame = animations.still_image_init(h, w); animations.draw_animation(frame)
+    #frame = animations.text_rain_diff_init(w, h); animations.draw_animation_diff(frame)
+    frame = animations.still_image_init(h, w); animations.draw_animation(frame)
     now = time.monotonic()
 
     while True:
@@ -198,8 +198,8 @@ def main() -> int:
             now = time.monotonic()
             #frame = animations.text_rain(h, w, frame)
             #animations.draw_animation(frame)
-            frame = animations.text_rain_diff(w, h, frame)
-            animations.draw_animation_diff(frame)
+            #frame = animations.text_rain_diff(w, h, frame)
+            #animations.draw_animation_diff(frame)
 
         menu.draw()
 
@@ -211,6 +211,9 @@ def main() -> int:
 
                 if char == "esc":
                     break
+                if char in ["F1", "F2"]:
+                    log("F1 or F2")
+                    #break  # TODO shutdown/reboot
 
                 elif char == "up" and menu.field_in_focus > 0:
                     menu.field_in_focus -= 1
@@ -235,9 +238,12 @@ def main() -> int:
 
             # verify password
             elif char in ["\n", "\r"]:
+                menu.error_msg = "Checking..."
+                menu.draw()
                 pam_obj = pam.PamAuthenticator()
                 if pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=True):
-                    menu.error_msg = "success"
+                    menu.error_msg = "Success"
+                    menu.draw()
                     menu.password_len = 0
                     print("\x1b[2J\x1b[H", end="")
                     print("\x1b[?25h", end="")  # unhide cursor
@@ -247,6 +253,7 @@ def main() -> int:
                         password = ""
                         print("\x1b[2J\x1b[H", end="")
                         os.waitpid(pid, 0)
+                        time.sleep(5)
 
                     elif pid == 0:
                         pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=False)
@@ -258,7 +265,7 @@ def main() -> int:
 
                         # start DE/WM
                         xorg = subprocess.Popen(["/usr/bin/X", f"{os.environ['DISPLAY']}", f"vt{os.environ['XDG_VTNR']}"])
-                        time.sleep(0.5)  # should use xcb.connect() to verify connection is possible but too lazy
+                        time.sleep(0.3)  # should use xcb.connect() to verify connection is possible but too lazy
                         # TODO other sessions as well. os.system("/usr/bin/bash --login 2>&1")  # subprocess?
                         qtile = subprocess.Popen(["/usr/bin/sh", f"{ETC_PATH}/xsetup.sh", "/usr/bin/qtile", "start"])
                         qtile.wait()
@@ -268,11 +275,15 @@ def main() -> int:
                         break
 
                     print("\x1b[?25l", end="")
-                else:
-                    menu.error_msg = "wrong password, try again in 3s"  # TODO sleep for X seconds on every fail
+                else:  # Handle wrong password
                     password = ""
                     menu.password_len = 0
-                    time.sleep(3)  # TODO doesn't stop user input
+                    menu.error_msg = "Wrong password. Try again in 3s"
+                    menu.draw()
+                    timeout = time.monotonic() + 3
+                    while time.monotonic() < timeout:
+                        getch(False)
+                    menu.error_msg = ""
 
     # exit stuff
     del password  # security?
