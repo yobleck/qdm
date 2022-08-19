@@ -64,7 +64,7 @@ def text_rain_diff(w:int, h: int, frame: list) -> list:
 
 def still_image_init(w: int, h:int) -> list:
     frame = []
-    with open("./still_image.txt", "r") as f:
+    with open("/home/yobleck/qdm/still_image.txt", "r") as f:
         for l in f.readlines():
             frame.append([])
             for c in l:

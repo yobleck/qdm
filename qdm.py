@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -17,7 +18,7 @@ ETC_PATH = "/home/yobleck/qdm/etc/qdm"  # how to get this without knowing where 
 
 def log(i):
     with open(f"{INSTALL_PATH}/test.log", "a") as f:
-        f.write(str(i) + "\n")
+        f.write(f"{time.asctime()}: {str(i)}\n")
 
 
 def getch(blocking: bool = True, bytes_to_read: int = 1) -> str:
@@ -35,8 +36,8 @@ def getch(blocking: bool = True, bytes_to_read: int = 1) -> str:
     return ch
 
 
-esc_chars = {"[A": "up", "[B": "dn", "[C": "rt", "[D": "lf", "[F": "end", "[H": "home", "OP": "F1",
-            "OQ": "F2", "OR": "F3", "OS": "F4", "[Z": "shft+tb", "[5~": "pgup", "[6~": "pgdn",
+esc_chars = {"[A": "up", "[B": "dn", "[C": "rt", "[D": "lf", "[F": "end", "[H": "home", "[[A": "F1",
+            "[[B": "F2", "[[C": "F3", "OS": "F4", "[Z": "shft+tb", "[5~": "pgup", "[6~": "pgdn", # "OR": "F3"
             "[15~": "F5", "[17~": "F6", "[18~": "F7", "[19~": "F8", "[20~": "F9", "[21~": "F10",
             "[23~": "F11", "[24~": "F12"}
 
@@ -44,10 +45,12 @@ esc_chars = {"[A": "up", "[B": "dn", "[C": "rt", "[D": "lf", "[F": "end", "[H": 
 def handle_esc() -> str:
     """https://en.wikipedia.org/wiki/ANSI_escape_code
     I don't know if this holds across all computers/keyboards
-    or is my setup just weird?"""
+    or if my setup just weird?
+    BUG: holding down key that uses less than 4 esc chars will capture
+    first char of next sequence early so next characters are captured as plain text"""
     a = getch(False, 4)
     if a in esc_chars.keys():
-        log(a)
+        log("key: " + a)
         return esc_chars[a]
     elif a == "":
         return "esc"
@@ -77,12 +80,14 @@ class Menu:
         self.error_msg: str = ""
 
         # static values of contents of menu box
+        self.f_keys: str = f"\x1b[HF1 Poweroff, F2 Reboot, F3 Restart QDM"
         self.top_border: str = f"\x1b[{self.h2-1};{self.cntr_scrn}H\u250c{'─'*self.w4}\u2510"  # ─ = \u2500 unicode character
         self.vt: str = f"\x1b[{self.h2};{self.cntr_scrn}H{self.menu_frmt('QDM vt:' + str(self.config['vt']), False)}"
         self.bottom_border: str = f"\x1b[{self.h2+5};{self.cntr_scrn}H\u2514{'─'*self.w4}\u2518"
 
     def draw(self) -> None:
         print(self.config["menu_color"], end="")
+        print(self.f_keys)
         print(self.top_border)
         print(self.vt)
         print(f"\x1b[{self.h2+1};{self.cntr_scrn}H"
@@ -156,7 +161,6 @@ def load_users_and_sessions() -> dict:
 def load_envars(menu) -> None:
     """Load environment variables"""
     # TODO put envars in dict and pass to pam.authenticate?
-    # TODO gtk modules envars?
     os.setgid(menu.config["gids"][menu.config_values[1]])
     os.setuid(menu.config["uids"][menu.config_values[1]])
 
@@ -181,6 +185,7 @@ def load_envars(menu) -> None:
 
 def main() -> int:
     w, h = shutil.get_terminal_size()
+    log("size: " + str(w) + ", " + str(h))
     menu = Menu(w, h, load_users_and_sessions())
     os.system(f"chvt {menu.config['vt']}")  # change vt focus
 
@@ -191,11 +196,11 @@ def main() -> int:
     #frame = animations.text_rain_init(h, w)
     #frame = animations.text_rain_diff_init(w, h); animations.draw_animation_diff(frame)
     frame = animations.still_image_init(h, w); animations.draw_animation(frame)
-    now = time.monotonic()
+    old_time = time.monotonic()
 
     while True:
-        if time.monotonic() - now > 0.0694:  # NOTE: fullscreen redraws cause flickering. framerate config var?
-            now = time.monotonic()
+        if time.monotonic() - old_time > 0.0694:  # NOTE: fullscreen redraws cause flickering. framerate config var?
+            old_time = time.monotonic()
             #frame = animations.text_rain(h, w, frame)
             #animations.draw_animation(frame)
             #frame = animations.text_rain_diff(w, h, frame)
@@ -211,9 +216,13 @@ def main() -> int:
 
                 if char == "esc":
                     break
-                if char in ["F1", "F2"]:
-                    log("F1 or F2")
-                    #break  # TODO shutdown/reboot
+
+                elif char == "F1":
+                    subprocess.run(["systemctl", "poweroff"])
+                elif char == "F2":
+                    subprocess.run(["systemctl", "reboot"])
+                elif char == "F3":
+                    subprocess.run(["systemctl", "restart", "qdm.service"])
 
                 elif char == "up" and menu.field_in_focus > 0:
                     menu.field_in_focus -= 1
@@ -251,24 +260,24 @@ def main() -> int:
                     pid = os.fork()
                     if pid > 0:
                         password = ""
-                        print("\x1b[2J\x1b[H", end="")
                         os.waitpid(pid, 0)
-                        time.sleep(5)
+                        menu.error_msg = "logged out"
+                        time.sleep(3)  # TODO terminal has to be ready for user input. What's the trigger?
 
                     elif pid == 0:
                         pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=False)
                         password = ""
                         pam_obj.open_session()
-                        print("\x1b[2J\x1b[H", end="")
                         # set env vars. TODO more stuff from printenv
                         load_envars(menu)
 
                         # start DE/WM
                         xorg = subprocess.Popen(["/usr/bin/X", f"{os.environ['DISPLAY']}", f"vt{os.environ['XDG_VTNR']}"])
-                        time.sleep(0.3)  # should use xcb.connect() to verify connection is possible but too lazy
-                        # TODO other sessions as well. os.system("/usr/bin/bash --login 2>&1")  # subprocess?
-                        qtile = subprocess.Popen(["/usr/bin/sh", f"{ETC_PATH}/xsetup.sh", "/usr/bin/qtile", "start"])
-                        qtile.wait()
+                        time.sleep(0.4)  # should use xcb.connect() to verify connection is possible but too lazy
+                        # TODO Bash session as well. os.system("/usr/bin/bash --login 2>&1")
+                        dewm = subprocess.Popen(["/usr/bin/sh", f"{ETC_PATH}/xsetup.sh"] +
+                                                shlex.split(menu.config["sessions"][menu.config_values[0]][1]))
+                        dewm.wait()
                         xorg.terminate()
                         pam_obj.close_session()
                         pam_obj.end()
@@ -292,5 +301,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # if os.getuid() == 0: ?
     main()
