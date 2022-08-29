@@ -21,13 +21,14 @@ QDM is a hobby project and security is not my strong suit so feel free to critiq
 - pamd
 - python-pam (tested with 2.0.2)
 - Xorg/X11
-- only tested with [Qtile](https://github.com/qtile/qtile) wm so far
+- only tested with [Qtile](https://github.com/qtile/qtile)(X11) wm and KDE Plasma(X11) so far
 
 ### files and paths that are expected to exist
 - `/etc/passwd`
 - `/etc/qdm/`
 - `/etc/pam.d/`
 - `/usr/lib/systemd/system/`
+- `/etc/systemd/system/display-manager.service`
 
 ## Install
 - No package manager support sorry :(
@@ -49,5 +50,3 @@ QDM is a hobby project and security is not my strong suit so feel free to critiq
 - systemd/logind/pam vs not those
 - default config files in `/etc/qdm/`
 - wayland-session
-- fix issue with certain programs not opening because they rely on a dbus connected systemd service that won't start
-    i.e. plasma-kactivitymanagerd.service, xdg-desktop-portal.service

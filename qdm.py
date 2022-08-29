@@ -1,7 +1,7 @@
 import json
 import os
-import shlex
-import shutil
+import shlex  # from shlex import split?
+import shutil  # from shutil import get_terminal_size()?
 import subprocess
 import sys
 import termios
@@ -10,7 +10,7 @@ import time
 import pam
 
 import animations
-
+# TODO change process name
 
 INSTALL_PATH = "/home/yobleck/qdm"  # replace with read from config
 ETC_PATH = "/home/yobleck/qdm/etc/qdm"  # how to get this without knowing where it is?
@@ -39,7 +39,7 @@ def getch(blocking: bool = True, bytes_to_read: int = 1) -> str:
 esc_chars = {"[A": "up", "[B": "dn", "[C": "rt", "[D": "lf", "[F": "end", "[H": "home", "[[A": "F1",
             "[[B": "F2", "[[C": "F3", "OS": "F4", "[Z": "shft+tb", "[5~": "pgup", "[6~": "pgdn", # "OR": "F3"
             "[15~": "F5", "[17~": "F6", "[18~": "F7", "[19~": "F8", "[20~": "F9", "[21~": "F10",
-            "[23~": "F11", "[24~": "F12"}
+            "[23~": "F11", "[24~": "F12"}  # TODO fix more F keys
 
 
 def handle_esc() -> str:
@@ -102,7 +102,7 @@ class Menu:
 
     def menu_frmt(self, line: str, is_hilite: bool) -> str:
         """Adds border, space padding and highlights line (hi).
-        TODO add colors and change to f strings
+        TODO change to f strings
         """
         if len(line) < self.w4:
             return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line + "\x1b[27m"*(int(is_hilite)) + " "*(self.w4 - len(line)) + "\u2502"
@@ -262,7 +262,8 @@ def main() -> int:
                         password = ""
                         os.waitpid(pid, 0)
                         menu.error_msg = "logged out"
-                        time.sleep(3)  # TODO terminal has to be ready for user input. What's the trigger?
+                        menu.draw()
+                        time.sleep(2)  # TODO terminal has to be ready for user input. What's the trigger?
 
                     elif pid == 0:
                         pam_obj.authenticate(menu.config["usernames"][menu.config_values[1]], password, call_end=False)
@@ -273,7 +274,7 @@ def main() -> int:
 
                         # start DE/WM
                         xorg = subprocess.Popen(["/usr/bin/X", f"{os.environ['DISPLAY']}", f"vt{os.environ['XDG_VTNR']}"])
-                        time.sleep(0.4)  # should use xcb.connect() to verify connection is possible but too lazy
+                        time.sleep(0.2)  # should use xcb.connect() to verify connection is possible but too lazy
                         # TODO Bash session as well. os.system("/usr/bin/bash --login 2>&1")
                         dewm = subprocess.Popen(["/usr/bin/sh", f"{ETC_PATH}/xsetup.sh"] +
                                                 shlex.split(menu.config["sessions"][menu.config_values[0]][1]))
