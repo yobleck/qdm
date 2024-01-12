@@ -1,7 +1,7 @@
 {
 "default_session": "Qtile",
 "default_username": "yobleck",
-"menu_color": "\u001b[33m",
+"menu_color": "\u001b[32m",
 "install_path": "/home/yobleck/qdm/",
 "etc_path": "/home/yobleck/qdm/etc/qdm/",
 "xauth_cmd": "/usr/bin/xauth",

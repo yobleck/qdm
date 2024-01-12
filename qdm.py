@@ -2,16 +2,26 @@ import json
 import os
 import shlex  # from shlex import split?
 import shutil  # from shutil import get_terminal_size()?
+import signal
 import subprocess
 import sys
 import termios
 import time
 
 import pam
+import setproctitle
 
 import animations
-# TODO change process name
 
+
+def sig_handler(sig, frame):  # TODO SIGTERM as well?
+    """ctrl-c shouldn't do anything"""
+    if sig == signal.SIGINT:
+        pass
+
+
+signal.signal(signal.SIGINT, sig_handler)
+setproctitle.setproctitle("QDM")
 INSTALL_PATH = "/home/yobleck/qdm"  # replace with read from config
 ETC_PATH = "/home/yobleck/qdm/etc/qdm"  # how to get this without knowing where it is?
 
@@ -37,9 +47,9 @@ def getch(blocking: bool = True, bytes_to_read: int = 1) -> str:
 
 
 esc_chars = {"[A": "up", "[B": "dn", "[C": "rt", "[D": "lf", "[F": "end", "[H": "home", "[[A": "F1",
-            "[[B": "F2", "[[C": "F3", "OS": "F4", "[Z": "shft+tb", "[5~": "pgup", "[6~": "pgdn", # "OR": "F3"
-            "[15~": "F5", "[17~": "F6", "[18~": "F7", "[19~": "F8", "[20~": "F9", "[21~": "F10",
-            "[23~": "F11", "[24~": "F12"}  # TODO fix more F keys
+             "[[B": "F2", "[[C": "F3", "OS": "F4", "[Z": "shft+tb", "[5~": "pgup", "[6~": "pgdn",  # "OR": "F3"
+             "[15~": "F5", "[17~": "F6", "[18~": "F7", "[19~": "F8", "[20~": "F9", "[21~": "F10",
+             "[23~": "F11", "[24~": "F12"}  # TODO fix more F keys
 
 
 def handle_esc() -> str:
@@ -64,15 +74,15 @@ class Menu:
         log(self.config)
 
         # precalculate size of menu box
-        self.w4: int = screen_width//4
-        self.cntr_scrn: int = screen_width//2 - self.w4//2
-        self.h2: int = screen_height//2
+        self.w4: int = screen_width // 4
+        self.cntr_scrn: int = screen_width // 2 - self.w4 // 2
+        self.h2: int = screen_height // 2
 
         # what has been selected.
         # NOTE these values will be changed from outside the object cause I don't feel like implementing getters/setters
         self.fields: list = ["sessions", "usernames", "password"]
         self.config_values: list = [self.config["default_session"],
-                                    self.config["default_username"]]  # [session, username]
+                                    self.config["default_username"]]  # [session, username] TODO change these to named vars
         self.field_in_focus: int = 0  # session, username or password
         if self.config_values[0] != 0 and self.config_values[1] != 0:
             self.field_in_focus = 2
@@ -105,9 +115,9 @@ class Menu:
         TODO change to f strings
         """
         if len(line) < self.w4:
-            return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line + "\x1b[27m"*(int(is_hilite)) + " "*(self.w4 - len(line)) + "\u2502"
+            return "\u2502" + "\x1b[7m" * (int(is_hilite)) + line + "\x1b[27m" * (int(is_hilite)) + " " * (self.w4 - len(line)) + "\u2502"
         else:
-            return "\u2502" + "\x1b[7m"*(int(is_hilite)) + line[:self.w4] + "\x1b[27m"*(int(is_hilite)) + "\u2502"
+            return "\u2502" + "\x1b[7m" * (int(is_hilite)) + line[:self.w4] + "\x1b[27m" * (int(is_hilite)) + "\u2502"
 
 
 def load_users_and_sessions() -> dict:
@@ -128,18 +138,23 @@ def load_users_and_sessions() -> dict:
     # get sessions and their launch commands
     # TODO wayland-sessions
     return_val["sessions"] = []
-    for x in os.listdir("/usr/share/xsessions"):
-        name = ""
-        exec_cmd = ""
-        if x.split(".")[-1] == "desktop":
-            with open("/usr/share/xsessions/" + x, "r") as f:
-                for line in f:
-                    v = line.split("=")
-                    if v[0] == "Name":
-                        name = v[1].strip()
-                    elif v[0] == "Exec":
-                        exec_cmd = v[1].strip()
-            return_val["sessions"].append([name, exec_cmd])
+    for i, folder in enumerate(["/usr/share/xsessions/", "/usr/share/wayland-sessions/"]):
+        for file in sorted(os.listdir(folder)):
+            name = ""
+            exec_cmd = ""
+            if file.split(".")[-1] == "desktop":
+                with open(folder + file, "r") as f:
+                    for line in f:
+                        v = line.split("=")
+                        if v[0] == "Name":
+                            name = v[1].strip()
+                        elif v[0] == "Exec":
+                            exec_cmd = v[1].strip()
+                if i == 0:
+                    sess_type = "x11"
+                elif i == 1:  # TODO bash and other shells
+                    sess_type = "wayland"
+                return_val["sessions"].append([name, exec_cmd, sess_type])
 
     # get default username and session from config
     with open(f"{ETC_PATH}/config.json", "r") as f:
@@ -167,13 +182,13 @@ def load_envars(menu) -> None:
     for x in range(10):
         if not os.path.exists(f"/tmp/.X{x}-lock"):
             break
-    os.environ["DISPLAY"] =  f":{x}"
+    os.environ["DISPLAY"] = f":{x}"
     os.environ["XDG_VTNR"] = menu.config["vt"]
     with open(f"/proc/{os.getpid()}/sessionid", "r") as f:
         os.environ["XDG_SESSION_ID"] = f.readline().strip()
 
     # misc other envars
-    with open(f"{ETC_PATH}/envars.json", "r") as f:
+    with open(f"{ETC_PATH}/envars.json", "r") as f:  # get rid of xdg_session_type?
         envars = json.load(f)
     for key, value in envars.items():
         os.environ[key] = value
@@ -184,6 +199,14 @@ def load_envars(menu) -> None:
 
 
 def main() -> int:
+    # try:
+    #     subprocess.Popen("cat \"/home/yobleck/Music/Microsoft - Windows XP Startup Sound.wav\" | aplay -r 48000 -t wav",
+    #                      shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    #     sub = subprocess.Popen("gst-play-1.0 --no-interactive --quiet \"/home/yobleck/Music/Microsoft - Windows XP Startup Sound.wav\"",
+    #                            shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    #     log(f"sound stdout: {sub.stdout}")
+    # except Exception as e:
+    #     log(f"audio error: {e}")
     w, h = shutil.get_terminal_size()
     log("size: " + str(w) + ", " + str(h))
     menu = Menu(w, h, load_users_and_sessions())
@@ -193,18 +216,20 @@ def main() -> int:
 
     print("\x1b[2J\x1b[H", end="")  # clear screen
     print("\x1b[?25l", end="")  # hide cursor
-    #frame = animations.text_rain_init(h, w)
-    #frame = animations.text_rain_diff_init(w, h); animations.draw_animation_diff(frame)
-    frame = animations.still_image_init(h, w); animations.draw_animation(frame)
+    # frame = animations.text_rain_init(h, w)
+    # frame = animations.text_rain_diff_init(w, h); animations.draw_animation_diff(frame)
+    # frame = animations.still_image_init(h, w)
+    # animations.draw_animation(frame)
     old_time = time.monotonic()
 
     while True:
-        if time.monotonic() - old_time > 0.0694:  # NOTE: fullscreen redraws cause flickering. framerate config var?
+        if time.monotonic() - old_time > 0.1:  # NOTE: fullscreen redraws cause flickering. framerate config var? 0.0694
             old_time = time.monotonic()
-            #frame = animations.text_rain(h, w, frame)
-            #animations.draw_animation(frame)
-            #frame = animations.text_rain_diff(w, h, frame)
-            #animations.draw_animation_diff(frame)
+            # TODO try using second framebuffer ESC[?1049h ESC[?1049l
+            # frame = animations.text_rain(h, w, frame)
+            # animations.draw_animation(frame)
+            # frame = animations.text_rain_diff(w, h, frame)
+            # animations.draw_animation_diff(frame)
 
         menu.draw()
 
@@ -230,7 +255,7 @@ def main() -> int:
                     menu.field_in_focus += 1
 
                 elif char == "rt" and menu.field_in_focus <= 1:  # TODO refactor this whole block
-                    if menu.config_values[menu.field_in_focus] < len(menu.config[menu.fields[menu.field_in_focus]])-1:
+                    if menu.config_values[menu.field_in_focus] < len(menu.config[menu.fields[menu.field_in_focus]]) - 1:
                         menu.config_values[menu.field_in_focus] += 1
                 elif char == "lf" and menu.field_in_focus <= 1:
                     if menu.config_values[menu.field_in_focus] > 0:
@@ -270,16 +295,24 @@ def main() -> int:
                         password = ""
                         pam_obj.open_session()
                         # set env vars. TODO more stuff from printenv
-                        load_envars(menu)
+                        # load_envars(menu)
 
                         # start DE/WM
-                        xorg = subprocess.Popen(["/usr/bin/X", f"{os.environ['DISPLAY']}", f"vt{os.environ['XDG_VTNR']}"])
-                        time.sleep(0.2)  # should use xcb.connect() to verify connection is possible but too lazy
-                        # TODO Bash session as well. os.system("/usr/bin/bash --login 2>&1")
-                        dewm = subprocess.Popen(["/usr/bin/sh", f"{ETC_PATH}/xsetup.sh"] +
-                                                shlex.split(menu.config["sessions"][menu.config_values[0]][1]))
-                        dewm.wait()
-                        xorg.terminate()
+                        if menu.config["sessions"][menu.config_values[0]][2] == "x11":
+                            load_envars(menu)  # BUG these envars are causing wayland to crash
+                            log("starting x11")
+                            xserver = subprocess.Popen(["/usr/bin/X", f"{os.environ['DISPLAY']}", f"vt{os.environ['XDG_VTNR']}"])
+                            time.sleep(0.2)  # should use xcb.connect() to verify connection is possible but too lazy
+                            # TODO Bash session as well. os.system("/usr/bin/bash --login 2>&1")
+                            dewm = subprocess.Popen(["/usr/bin/sh", f"{ETC_PATH}/xsetup.sh"] +
+                                                    shlex.split(menu.config["sessions"][menu.config_values[0]][1]))
+                            dewm.wait()
+                            xserver.terminate()
+                        elif menu.config["sessions"][menu.config_values[0]][2] == "wayland":
+                            log(f"starting wayland session: {menu.config['sessions'][menu.config_values[0]][1]}")
+                            dewm = subprocess.Popen(["/usr/bin/sh", f"{ETC_PATH}/wsetup.sh"] +
+                                                    shlex.split(menu.config["sessions"][menu.config_values[0]][1]))
+                            dewm.wait()
                         pam_obj.close_session()
                         pam_obj.end()
                         break

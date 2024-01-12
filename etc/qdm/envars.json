@@ -4,6 +4,7 @@
     "XCURSOR_THEME": "breeze_cursors",
     "XDG_RUNTIME_DIR": "/run/user/1000",
     "XDG_CONFIG_HOME": "/home/yobleck/.config",
+    "XDG_CACHE_HOME": "/home/yobleck/.cache",
     "XDG_SEAT": "seat0",
     "XDG_SESSION_CLASS": "user",
     "XDG_SESSION_TYPE": "x11",
